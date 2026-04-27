@@ -82,22 +82,27 @@
     },
     "yaw_attitude": {
         "enabled": true,
-        "tuning_note": "Outer-loop only (no rate cascade). Output is flaps differential directly. Servo is a slow actuator — no inner rate loop. kp=0.0003 gives ~0.003 flaps per 10deg heading error.",
-        "kp": 0.0003,
-        "ki": 0.00005,
-        "kd": 0.0001,
-        "output_min": -0.03,
-        "output_max": 0.03,
-        "integrator_max": 0.02
+        "tuning_note": "DUAL-LOOP: Outer loop outputs RATE COMMAND (deg/s), not flaps directly. kp=0.5 means 10deg heading error → 5 deg/s rate command. Conservative to avoid oscillation.",
+        "kp": 0.5,
+        "ki": 0.02,
+        "kd": 0.05,
+        "output_min": -15.0,
+        "output_max": 15.0,
+        "integrator_max": 5.0
     },
     "yaw_rate": {
-        "tuning_note": "Output is now flaps differential (not rudder deg). ±0.03 max = ±2.7deg tilt asymmetry. kp=0.001 is conservative — at ~480 ft*lbf/unit_flaps_diff, this gives ~0.48 ft*lbf per deg/s rate error.",
-        "kp": 0.001,
-        "ki": 0.0002,
-        "kd": 0.0,
-        "output_min": -0.03,
-        "output_max": 0.03,
-        "integrator_max": 0.02
+        "tuning_note": "Inner loop: rate error (deg/s) → differential throttle. At hover ~0.4 throttle per motor, Izz=21.2 kg⋅m² (=15.6 slug⋅ft²). With 4 motors at arm=3.88ft and T0=99.24lbf, max yaw torque from full diff ≈ 770 ft⋅lbf → α ≈ 49 deg/s². So kp=0.005 gives 0.005 throttle per deg/s rate error → ~2.5 deg/s² authority per deg/s error. Conservative.",
+        "kp": 0.005,
+        "ki": 0.001,
+        "kd": 0.0005,
+        "output_min": -0.08,
+        "output_max": 0.08,
+        "integrator_max": 0.03
+    },
+    "yaw_mixer": {
+        "throttle_gain": 1.0,
+        "flaps_gain": 1.0,
+        "_note": "throttle_gain scales the rate PID output before applying to differential throttle. flaps_gain scales the proportional flaps differential from heading error. Both default to 1.0 — adjust to balance the two yaw mechanisms."
     },
     "setpoints": {
         "description": "Full test sequence: hover settle -> roll test -> alt step -> yaw test -> settle",

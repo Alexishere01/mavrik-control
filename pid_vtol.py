@@ -289,6 +289,11 @@ class VTOLController:
         self.u_loop_enabled   = c["u_velocity"].get("enabled", True)
         self.yaw_loop_enabled = c["yaw_attitude"].get("enabled", False)
 
+        # Yaw mixer gains
+        ym = c.get("yaw_mixer", {})
+        self.yaw_throttle_gain = ym.get("throttle_gain", 1.0)
+        self.yaw_flaps_gain    = ym.get("flaps_gain", 1.0)
+
         # Trim
         t = c["trim"]
         self.trim_fwd = t["throttle_fwd"]
@@ -339,7 +344,7 @@ class VTOLController:
             "phi_cmd,phi,theta_cmd,theta,psi_cmd,psi,"
             "alt_cmd,alt,climb_cmd,climb,u_cmd,u,"
             "p_cmd,p,q_cmd,q,r_cmd,r,"
-            "collective_delta,roll_diff,pitch_diff_fwd,pitch_diff_aft,rudder,"
+            "collective_delta,roll_diff,yaw_thr_diff,pitch_diff_fwd,pitch_diff_aft,rudder,"
             "thrFR,thrFL,thrAR,thrAL,"
             "aileron,elevator,"
             "flapsR,flapsL,yaw_diff_flaps,ramp\n"
@@ -393,7 +398,12 @@ class VTOLController:
         print(f"  Ramp-in:        {self.ramp_seconds} s (output blend trim->controller)")
         print(f"  Warmup:         {self.warmup_seconds} s (setpoint blend initial->schedule)")
         print(f"  u-vel loop:     {'on' if self.u_loop_enabled else 'off'}")
-        print(f"  Yaw loop:       {'on (diff tilt)' if self.yaw_loop_enabled else 'off'}")
+        if self.yaw_loop_enabled:
+            print(f"  Yaw loop:       ON (dual-loop)")
+            print(f"    Inner (rate→throttle): gain={self.yaw_throttle_gain}")
+            print(f"    Outer (att→flaps):     gain={self.yaw_flaps_gain}")
+        else:
+            print(f"  Yaw loop:       off")
         print(f"  Log file:       {c['logging']['filename']}")
         print()
         print("  Setpoint schedule:")
@@ -495,21 +505,41 @@ class VTOLController:
             q_cmd = self.pid_pitch_att.update(theta_err, t)
             pitch_diff = self.pid_pitch_rate.update(q_cmd - q_d, t)
 
-            # === YAW — outer-loop only (servo is a slow actuator) ===
-            # Vectored yaw via differential tilt.
-            # Positive yaw_diff_flaps = yaw RIGHT:
-            #   flapsRight increases (right arm more vertical, less fwd push on right)
-            #   flapsLeft decreases (left arm tilts forward, more fwd push on left)
-            #   Net: left side pushes forward → vehicle yaws right
-            # NOTE: No inner rate cascade — servo time constant (~0.1s) is too slow
-            #       for rate-loop control. Attitude PID drives flaps directly.
+            # === YAW — DUAL-LOOP: outer (flaps) + inner (diff throttle) ===
+            #
+            # OUTER LOOP — Yaw attitude PID:
+            #   heading error → attitude PID → rate command + flaps differential
+            #   Differential flaps = vectored tilt for heading tracking (slow)
+            #
+            # INNER LOOP — Yaw rate PID:
+            #   rate command → rate PID → differential throttle
+            #   Differential throttle = torque reaction for rate damping (fast)
+            #
+            # Motor torque reaction signs (confirmed from parameters sheet):
+            #   Motor 1 Fwd Right (CCW): +diff → more CCW spin → more CW reaction → yaw RIGHT
+            #   Motor 2 Fwd Left  (CW):  -diff → less CW spin  → less CCW reaction → yaw RIGHT
+            #   Motor 3 Aft Right (CW):  -diff → less CW spin  → less CCW reaction → yaw RIGHT
+            #   Motor 4 Aft Left  (CCW): +diff → more CCW spin → more CW reaction → yaw RIGHT
+            #   Pattern: diagonal motors 1&4 (+), 2&3 (-)
+            #
             if self.yaw_loop_enabled:
                 psi_err = wrap_angle((psi_cmd - psi_d) * DEG2RAD) * RAD2DEG
-                yaw_diff_flaps = self.pid_yaw_att.update(psi_err, t)
-                r_cmd_d = 0.0  # no rate command (outer loop only)
+
+                # Outer loop: heading error → rate command
+                r_cmd_d = self.pid_yaw_att.update(psi_err, t)
+
+                # Outer loop also drives differential flaps (vectored tilt)
+                # Scale by flaps_gain (separate from attitude PID gains)
+                yaw_diff_flaps = clamp(psi_err * self.yaw_flaps_gain * 0.001,
+                                       -0.03, 0.03)
+
+                # Inner loop: rate error → differential throttle (torque reaction)
+                r_err = r_cmd_d - r_d
+                yaw_thr_diff = self.pid_yaw_rate.update(r_err, t) * self.yaw_throttle_gain
             else:
                 r_cmd_d = 0.0
                 yaw_diff_flaps = 0.0
+                yaw_thr_diff = 0.0
 
             # === ASYMMETRIC MIXER ===
             #
@@ -532,10 +562,10 @@ class VTOLController:
             base_fwd = self.trim_fwd + collective_delta
             base_aft = self.trim_aft + collective_delta
 
-            thrFR_raw = base_fwd + pitch_fwd - roll_diff
-            thrFL_raw = base_fwd + pitch_fwd + roll_diff
-            thrAR_raw = base_aft + pitch_aft - roll_diff
-            thrAL_raw = base_aft + pitch_aft + roll_diff
+            thrFR_raw = base_fwd + pitch_fwd - roll_diff + yaw_thr_diff   # Motor 1 CCW: + for yaw right
+            thrFL_raw = base_fwd + pitch_fwd + roll_diff - yaw_thr_diff   # Motor 2 CW:  - for yaw right
+            thrAR_raw = base_aft + pitch_aft - roll_diff - yaw_thr_diff   # Motor 3 CW:  - for yaw right
+            thrAL_raw = base_aft + pitch_aft + roll_diff + yaw_thr_diff   # Motor 4 CCW: + for yaw right
 
             # === RAMP-IN: blend toward pure trim during the first few seconds ===
             thrFR_ramped = ramp * thrFR_raw + (1 - ramp) * self.trim_fwd
@@ -576,7 +606,7 @@ class VTOLController:
                     f"{u_cmd:.3f},{u:.3f},"
                     f"{p_cmd:.3f},{p_d:.3f},{q_cmd:.3f},{q_d:.3f},"
                     f"{r_cmd_d:.3f},{r_d:.3f},"
-                    f"{collective_delta:.4f},{roll_diff:.4f},"
+                    f"{collective_delta:.4f},{roll_diff:.4f},{yaw_thr_diff:.5f},"
                     f"{pitch_fwd:.4f},{pitch_aft:.4f},{rudder_cmd:.3f},"
                     f"{thrFR_cmd:.4f},{thrFL_cmd:.4f},{thrAR_cmd:.4f},{thrAL_cmd:.4f},"
                     f"{aileron:.3f},{elevator:.3f},"

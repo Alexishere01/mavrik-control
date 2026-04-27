@@ -180,6 +180,11 @@
                         "T0": 99.24,
                         "independent_variable": "throttleFwdRight"
                     }
+                },
+                "polynomials": {
+                    "Cl": {
+                        "throttleFwdRight": -6.6
+                    }
                 }
             },
             "mass": 0
@@ -251,6 +256,11 @@
                         "T0": 99.24,
                         "independent_variable": "throttleFwdLeft"
                     }
+                },
+                "polynomials": {
+                    "Cl": {
+                        "throttleFwdLeft": 6.6
+                    }
                 }
             },
             "mass": 0
@@ -304,6 +314,11 @@
                         "T0": 99.24,
                         "independent_variable": "throttleAftRight"
                     }
+                },
+                "polynomials": {
+                    "Cl": {
+                        "throttleAftRight": 6.6
+                    }
                 }
             },
             "mass": 0
@@ -356,6 +371,11 @@
                         "Ta": 0.0,
                         "T0": 99.24,
                         "independent_variable": "throttleAftLeft"
+                    }
+                },
+                "polynomials": {
+                    "Cl": {
+                        "throttleAftLeft": -6.6
                     }
                 }
             },
