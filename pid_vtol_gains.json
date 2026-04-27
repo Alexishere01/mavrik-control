@@ -21,15 +21,17 @@
         "warmup_seconds": 5.0
     },
     "altitude": {
-        "kp": 0.3,
+        "tuning_note": "Bumped kp 0.3->0.5, kd 0.1->0.15 for faster altitude step response. Previous run showed ~15s to reach 8/10 ft — targeting ~8s.",
+        "kp": 0.5,
         "ki": 0.05,
-        "kd": 0.1,
+        "kd": 0.15,
         "output_min": -5.0,
         "output_max": 5.0,
         "integrator_max": 10.0
     },
     "climb_rate": {
-        "kp": 0.02,
+        "tuning_note": "Bumped kp 0.02->0.04 for more aggressive collective response. ki stays the same to avoid steady-state drift.",
+        "kp": 0.04,
         "ki": 0.005,
         "kd": 0.0,
         "output_min": -0.35,
@@ -79,13 +81,13 @@
         "integrator_max": 5.0
     },
     "yaw_attitude": {
-        "enabled": false,
+        "enabled": true,
         "kp": 0.3,
         "ki": 0.0,
         "kd": 0.05,
         "output_min": -10.0,
         "output_max": 10.0,
-        "note": "Disabled in hover mode. Gains present so PID object can construct -- pid_vtol.py make_pid reads kp/ki/kd unconditionally."
+        "note": "Enabled for yaw test. Rudder authority is weak in hover so expect slow response. 15deg heading change test at t=100s."
     },
     "yaw_rate": {
         "kp": 0.5,
@@ -96,14 +98,16 @@
         "integrator_max": 5.0
     },
     "setpoints": {
-        "description": "Hold initial state for 5s warmup, then maintain hover at 1000 ft.",
+        "description": "Full test sequence: hover settle -> roll test -> alt step -> yaw test -> settle",
         "schedule": [
             {
                 "time": 0.0,
                 "phi_deg": 0.0,
                 "theta_deg": 0.0,
                 "alt_ft": 1000.0,
-                "u_ft_s": 0.0
+                "psi_deg": 0.0,
+                "u_ft_s": 0.0,
+                "_note": "Hover settle (warmup 5s + 25s steady)"
             },
             {
                 "time": 30.0,
@@ -117,28 +121,59 @@
                 "phi_deg": 5.0,
                 "theta_deg": 0.0,
                 "alt_ft": 1000.0,
-                "u_ft_s": 0.0
+                "u_ft_s": 0.0,
+                "_note": "Roll test: 5deg right"
             },
             {
                 "time": 55.0,
                 "phi_deg": 0.0,
                 "theta_deg": 0.0,
                 "alt_ft": 1000.0,
-                "u_ft_s": 0.0
+                "u_ft_s": 0.0,
+                "_note": "Return to wings-level"
             },
             {
                 "time": 70.0,
                 "phi_deg": 0.0,
                 "theta_deg": 0.0,
                 "alt_ft": 1010.0,
-                "u_ft_s": 0.0
+                "u_ft_s": 0.0,
+                "_note": "Altitude step: +10 ft"
             },
             {
                 "time": 90.0,
                 "phi_deg": 0.0,
                 "theta_deg": 0.0,
                 "alt_ft": 1000.0,
-                "u_ft_s": 0.0
+                "u_ft_s": 0.0,
+                "_note": "Return to 1000 ft"
+            },
+            {
+                "time": 100.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 1000.0,
+                "psi_deg": 15.0,
+                "u_ft_s": 0.0,
+                "_note": "Yaw test: 15deg heading change"
+            },
+            {
+                "time": 120.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 1000.0,
+                "psi_deg": 0.0,
+                "u_ft_s": 0.0,
+                "_note": "Return to 0deg heading"
+            },
+            {
+                "time": 140.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 1000.0,
+                "psi_deg": 0.0,
+                "u_ft_s": 0.0,
+                "_note": "Final settle"
             }
         ]
     },

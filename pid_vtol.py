@@ -442,7 +442,11 @@ class VTOLController:
             theta_cmd_sched = sp["theta_deg"]
             alt_cmd_sched   = sp["alt_ft"]
             u_cmd_sched     = sp.get("u_ft_s", 0.0)
-            psi_cmd         = self.heading_hold
+            # When yaw loop is enabled, read heading from schedule; otherwise hold initial
+            if self.yaw_loop_enabled and "psi_deg" in sp:
+                psi_cmd = sp["psi_deg"] + self.heading_hold  # offset from initial heading
+            else:
+                psi_cmd = self.heading_hold
 
             # Warmup blend: hold initial state, then ease into the scheduled setpoint.
             # blend = 0 means use initial state, blend = 1 means use schedule.
