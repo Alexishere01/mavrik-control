@@ -90,12 +90,13 @@
         "note": "Enabled for yaw test. Rudder authority is weak in hover so expect slow response. 15deg heading change test at t=100s."
     },
     "yaw_rate": {
-        "kp": 0.5,
-        "ki": 0.02,
-        "kd": 0.01,
-        "output_min": -10.0,
-        "output_max": 10.0,
-        "integrator_max": 5.0
+        "tuning_note": "Output is now flaps differential (not rudder deg). ±0.03 max = ±2.7deg tilt asymmetry. kp=0.001 is conservative — at ~480 ft*lbf/unit_flaps_diff, this gives ~0.48 ft*lbf per deg/s rate error.",
+        "kp": 0.001,
+        "ki": 0.0002,
+        "kd": 0.0,
+        "output_min": -0.03,
+        "output_max": 0.03,
+        "integrator_max": 0.02
     },
     "setpoints": {
         "description": "Full test sequence: hover settle -> roll test -> alt step -> yaw test -> settle",

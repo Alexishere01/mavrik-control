@@ -297,7 +297,7 @@ class VTOLController:
         self.trim_ail = t["aileron_deg"]
         self.trim_ele = t["elevator_deg"]
         self.trim_rud = t["rudder_deg"]
-        self.flaps = c["flaps_value"]
+        self.base_flaps = c["flaps_value"]
 
         # Safety
         s = c["safety"]
@@ -336,7 +336,8 @@ class VTOLController:
             "p_cmd,p,q_cmd,q,r_cmd,r,"
             "collective_delta,roll_diff,pitch_diff_fwd,pitch_diff_aft,rudder,"
             "thrFR,thrFL,thrAR,thrAL,"
-            "aileron,elevator,flaps,ramp\n"
+            "aileron,elevator,"
+            "flapsR,flapsL,yaw_diff_flaps,ramp\n"
         )
         self.log_dt = 1.0 / lc["rate_hz"]
         self.last_log = 0.0
@@ -363,8 +364,8 @@ class VTOLController:
             return struct.unpack('<' + 'f' * n, data)
         return None
 
-    def send_controls(self, ail, ele, rud, thrFR, thrFL, thrAR, thrAL, flaps):
-        pkt = struct.pack('<8f', ail, ele, rud, thrFR, thrFL, thrAR, thrAL, flaps)
+    def send_controls(self, ail, ele, rud, thrFR, thrFL, thrAR, thrAL, flapsR, flapsL):
+        pkt = struct.pack('<9f', ail, ele, rud, thrFR, thrFL, thrAR, thrAL, flapsR, flapsL)
         self.ctrl_sock.sendto(pkt, self.ctrl_dest)
 
     def rate_limit(self, new_val, last_val, max_step):
@@ -378,7 +379,7 @@ class VTOLController:
         print("  MAVRIK VTOL PID Controller v2  (asymmetric mixer)")
         print("=" * 72)
         print(f"  roll_rate kp={self.cfg['roll_rate']['kp']}  roll_att output_max={self.cfg['roll_attitude']['output_max']}")
-        print(f"  Mode:           {c['mode']}  (flaps={self.flaps})")
+        print(f"  Mode:           {c['mode']}  (base_flaps={self.base_flaps})")
         print(f"  Trim throttle:  fwd={self.trim_fwd:.3f}  aft={self.trim_aft:.3f}")
         print(f"  Lift balance:   {self.lift_balance:.3f}  (sin of fwd tilt angle)")
         print(f"  Loop rate:      {self.loop_hz} Hz")
@@ -387,7 +388,7 @@ class VTOLController:
         print(f"  Ramp-in:        {self.ramp_seconds} s (output blend trim->controller)")
         print(f"  Warmup:         {self.warmup_seconds} s (setpoint blend initial->schedule)")
         print(f"  u-vel loop:     {'on' if self.u_loop_enabled else 'off'}")
-        print(f"  Yaw loop:       {'on' if self.yaw_loop_enabled else 'off (rudder weak in hover)'}")
+        print(f"  Yaw loop:       {'on (diff tilt)' if self.yaw_loop_enabled else 'off'}")
         print(f"  Log file:       {c['logging']['filename']}")
         print()
         print("  Setpoint schedule:")
@@ -489,14 +490,18 @@ class VTOLController:
             q_cmd = self.pid_pitch_att.update(theta_err, t)
             pitch_diff = self.pid_pitch_rate.update(q_cmd - q_d, t)
 
-            # === YAW CASCADE (usually disabled in hover) ===
+            # === YAW CASCADE — differential tilt for yaw authority in hover ===
+            # Positive yaw_diff_flaps = yaw RIGHT:
+            #   flapsRight increases (right arm more vertical, less fwd push on right)
+            #   flapsLeft decreases (left arm tilts forward, more fwd push on left)
+            #   Net: left side pushes forward → vehicle yaws right
             if self.yaw_loop_enabled:
                 psi_err = wrap_angle((psi_cmd - psi_d) * DEG2RAD) * RAD2DEG
                 r_cmd_d = self.pid_yaw_att.update(psi_err, t)
-                rudder_delta = self.pid_yaw_rate.update(r_cmd_d - r_d, t)
+                yaw_diff_flaps = self.pid_yaw_rate.update(r_cmd_d - r_d, t)
             else:
                 r_cmd_d = 0.0
-                rudder_delta = 0.0
+                yaw_diff_flaps = 0.0
 
             # === ASYMMETRIC MIXER ===
             #
@@ -537,17 +542,21 @@ class VTOLController:
             thrAL_cmd = self.rate_limit(clamp(thrAL_ramped, 0, 1), self.last_thr[3], self.max_thr_step)
             self.last_thr = [thrFR_cmd, thrFL_cmd, thrAR_cmd, thrAL_cmd]
 
-            rudder_raw = clamp(self.trim_rud + ramp * rudder_delta, -15, 15)
+            rudder_raw = clamp(self.trim_rud, -15, 15)  # rudder at trim (no authority in hover)
             rudder_cmd = self.rate_limit(rudder_raw, self.last_rud, self.max_surf_step)
             self.last_rud = rudder_cmd
 
             aileron  = clamp(self.trim_ail, -15, 15)
             elevator = clamp(self.trim_ele, -15, 15)
 
+            # === DIFFERENTIAL FLAPS FOR YAW ===
+            flapsR_cmd = clamp(self.base_flaps + ramp * yaw_diff_flaps, 0, 1)
+            flapsL_cmd = clamp(self.base_flaps - ramp * yaw_diff_flaps, 0, 1)
+
             # === SEND ===
             self.send_controls(aileron, elevator, rudder_cmd,
                                thrFR_cmd, thrFL_cmd, thrAR_cmd, thrAL_cmd,
-                               self.flaps)
+                               flapsR_cmd, flapsL_cmd)
 
             # === LOG ===
             if t - self.last_log >= self.log_dt:
@@ -562,7 +571,8 @@ class VTOLController:
                     f"{collective_delta:.4f},{roll_diff:.4f},"
                     f"{pitch_fwd:.4f},{pitch_aft:.4f},{rudder_cmd:.3f},"
                     f"{thrFR_cmd:.4f},{thrFL_cmd:.4f},{thrAR_cmd:.4f},{thrAL_cmd:.4f},"
-                    f"{aileron:.3f},{elevator:.3f},{self.flaps:.3f},{ramp:.3f}\n"
+                    f"{aileron:.3f},{elevator:.3f},"
+                    f"{flapsR_cmd:.4f},{flapsL_cmd:.4f},{yaw_diff_flaps:.5f},{ramp:.3f}\n"
                 )
                 self.last_log = t
 
@@ -578,8 +588,10 @@ class VTOLController:
                       f"phi={phi_d:+5.1f}/{phi_cmd_base:+5.1f} | "
                       f"theta={theta_d:+5.1f}/{theta_cmd:+5.1f} | "
                       f"alt={alt:6.1f}/{alt_cmd:.0f} | "
+                      f"psi={psi_d:+6.1f}/{psi_cmd:+.0f} | "
                       f"u={u:+5.1f} | "
-                      f"thr=[{thrFR_cmd:.2f} {thrFL_cmd:.2f} {thrAR_cmd:.2f} {thrAL_cmd:.2f}]")
+                      f"thr=[{thrFR_cmd:.2f} {thrFL_cmd:.2f} {thrAR_cmd:.2f} {thrAL_cmd:.2f}] "
+                      f"ydf={yaw_diff_flaps:+.4f}")
                 last_print = t
 
             elapsed = time.time() - t0

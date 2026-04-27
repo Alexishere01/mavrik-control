@@ -29,6 +29,6 @@
         "refresh_rate": 50,
         "data_type": "controls",
         "port_ID": 5006,
-        "number_of_values": 8
+        "number_of_values": 9
     }
 }

@@ -134,7 +134,7 @@
                     },
                     "elevation[deg]": {
                         "0": 0,
-                        "flaps": 90
+                        "flapsRight": 90
                     },
                     "heading": {
                         "0": 0
@@ -156,7 +156,7 @@
                     },
                     "elevation[deg]": {
                         "0": 0,
-                        "flaps": 90
+                        "flapsRight": 90
                     },
                     "heading": {
                         "0": 0
@@ -205,7 +205,7 @@
                     },
                     "elevation[deg]": {
                         "0": 0,
-                        "flaps": 90
+                        "flapsLeft": 90
                     },
                     "heading": {
                         "0": 0
@@ -227,7 +227,7 @@
                     },
                     "elevation[deg]": {
                         "0": 0,
-                        "flaps": 90
+                        "flapsLeft": 90
                     },
                     "heading": {
                         "0": 0
@@ -460,7 +460,18 @@
             ],
             "time_constant": 0.1
         },
-        "flaps": {
+        "flapsRight": {
+            "magnitude_limits": [
+                0,
+                1
+            ],
+            "rate_limit": [
+                -0.2,
+                0.2
+            ],
+            "time_constant": 0.1
+        },
+        "flapsLeft": {
             "magnitude_limits": [
                 0,
                 1
