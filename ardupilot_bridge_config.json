@@ -1,0 +1,19 @@
+{
+    "ardupilot_in": {
+        "bind_ip": "127.0.0.1",
+        "port": 9002
+    },
+    "mavrik": {
+        "state_port": 5009,
+        "control_ip": "127.0.0.1",
+        "control_port": 5006
+    },
+    "pwm_mapping": {
+        "flaps_fixed": 0.99,
+        "aileron_channel":  null,
+        "elevator_channel": null,
+        "rudder_channel":   null,
+        "_comment": "ArduCopter quad uses CH1-4 for motors. Leave servo channels null for hover MVP. For QuadPlane later, set aileron=1 elevator=2 rudder=4 and remap motors to 5-8."
+    },
+    "status_print_hz": 2.0
+}

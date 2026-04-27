@@ -1,0 +1,63 @@
+{
+    "license_filename": "license.txt",
+    "simulation": {
+        "end_time": 100,
+        "states_print_rate": 10,
+        "pulse_rate": 0.25,
+        "time_step": 0.0,
+        "connections": {"filepath": "connections.json"}
+    },
+    "atmosphere": {
+        "constant_wind[kts]": [0,0,0],
+        "turbulence": {
+            "type": "direct",
+            "Vmin[kts]": 2,
+            "Lh[in]": 56,
+            "Lv[ft]": 4.5,
+            "span[m]": 4,
+            "sigma[ft/s]": 2,
+            "probability_of_exceedance": 1e-3,
+            "memory_size": 200
+        }
+    },
+    "vehicle": {
+        "properties": {"filepath": "demo_VTOL.json"},
+        "initial": {
+            "airspeed[ft/s]": 20,
+            "altitude[ft]": 1000.0,
+            "latitude[deg]": 0,
+            "longitude[deg]": 0,
+            "heading_angle[deg]": 0.0,
+            "type": "state",
+            "state": {
+                "elevation_angle[deg]": -3,
+                "bank_angle[deg]": 0.0,
+                "alpha[deg]": -2,
+                "beta[deg]": 0.0,
+                "p[deg/s]": 0.0,
+                "q[deg/s]": 0.0,
+                "r[deg/s]": 0.0,
+                "control_effectors": {
+                    "aileron[deg]": 0,
+                    "elevator[deg]": 0,
+                    "rudder[deg]": 0,
+                    "flaps": 0.99,
+                    "throttleFwdRight": 0.5,
+                    "throttleFwdLeft":  0.5,
+                    "throttleAftRight": 0.5,
+                    "throttleAftLeft":  0.5
+                }
+            }
+        }
+    },
+    "analysis": {
+        "xexport_state_space_model": {
+            "base_filename": "demo_VTOL",
+            "finite_difference_step_size": 0.001,
+            "use_Euler_Angles": true
+        },
+        "display_vehicle_mass_properties": true,
+        "xcreate_vtk": "demo_VTOL",
+        "xcreate_stl": "demo_VTOL"
+    }
+}

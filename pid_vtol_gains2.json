@@ -1,0 +1,160 @@
+{
+    "description": "PID v2 \u2014 asymmetric mixer for tilted fwd / vertical aft motors",
+    "loop_rate_hz": 50,
+    "mode": "hover",
+    "flaps_value": 0.99,
+    "trim": {
+        "description": "Computed for W=160 lbf, T0=80 lbf/motor, fwd tilt 63\u00b0, CG x=-1.10. Override here if MAVRIK reports different mass props.",
+        "throttle_fwd": 0.5,
+        "throttle_aft": 0.23,
+        "aileron_deg": 0.0,
+        "elevator_deg": 0.0,
+        "rudder_deg": 0.0,
+        "lift_balance_factor": 0.892,
+        "_note_lift_balance": "= sin(fwd_tilt). When pitch loop adds delta to fwd, we subtract delta*lift_balance_factor from aft to keep total lift constant."
+    },
+    "safety": {
+        "description": "Per-tick output limits to keep motors in safe regime",
+        "max_throttle_step": 0.05,
+        "max_surface_step_deg": 5.0,
+        "ramp_in_seconds": 2.0,
+        "warmup_seconds": 5.0,
+        "_note_ramp": "For first ramp_in_seconds, blend controller output with pure trim. Prevents a startup-transient kick from saturating motors.",
+        "_note_warmup": "For first warmup_seconds, hold the vehicle's INITIAL state as the setpoint (instead of the schedule). Lets all loops start at zero error rather than fighting a 20+ fps / 3\u00b0 instant disturbance."
+    },
+    "altitude": {
+        "kp": 0.3,
+        "ki": 0.05,
+        "kd": 0.1,
+        "output_min": -5.0,
+        "output_max": 5.0,
+        "integrator_max": 10.0,
+        "_note": "alt error (ft) -> climb rate cmd (ft/s)"
+    },
+    "climb_rate": {
+        "kp": 0.02,
+        "ki": 0.005,
+        "kd": 0.0,
+        "output_min": -0.35,
+        "output_max": 0.35,
+        "integrator_max": 5.0,
+        "_note": "climb rate error (ft/s) -> collective throttle delta"
+    },
+    "roll_attitude": {
+        "kp": 1.5,
+        "ki": 0.0,
+        "kd": 0.5,
+        "output_min": -15.0,
+        "output_max": 15.0,
+        "_note": "roll error (deg) -> roll rate cmd (deg/s)"
+    },
+    "roll_rate": {
+        "kp": 0.006,
+        "ki": 0.001,
+        "kd": 0.0,
+        "output_min": -0.15,
+        "output_max": 0.15,
+        "integrator_max": 3.0,
+        "_note": "roll rate error (deg/s) -> differential throttle"
+    },
+    "pitch_attitude": {
+        "kp": 2.0,
+        "ki": 0.5,
+        "kd": 0.2,
+        "output_min": -15.0,
+        "output_max": 15.0,
+        "integrator_max": 5.0
+    },
+    "pitch_rate": {
+        "kp": 0.001,
+        "ki": 0.0002,
+        "kd": 0.0001,
+        "output_min": -0.1,
+        "output_max": 0.1,
+        "integrator_max": 3.0,
+        "_note": "pitch rate error (deg/s) -> differential throttle"
+    },
+    "u_velocity": {
+        "enabled": true,
+        "kp": 0.05,
+        "ki": 0.005,
+        "kd": 0.0,
+        "output_min": -2.0,
+        "output_max": 2.0,
+        "integrator_max": 5.0,
+        "_note": "Forward-velocity damping: tilted fwd motors push forward unavoidably. This loop nudges PITCH SETPOINT (positive theta = nose up = less fwd push). Output limited to \u00b12\u00b0 pitch nudge so it doesn't fight the pitch loop. Detuned vs initial guess \u2014 initial values caused 5\u00b0 pitch overshoot."
+    },
+    "yaw_attitude": {
+        "enabled": false,
+        "kp": 0.3,
+        "ki": 0.0,
+        "kd": 0.05,
+        "output_min": -10.0,
+        "output_max": 10.0,
+        "_note": "Yaw control is weak in hover (no rudder authority, no rotor torque)."
+    },
+    "yaw_rate": {
+        "kp": 0.5,
+        "ki": 0.02,
+        "kd": 0.01,
+        "output_min": -10.0,
+        "output_max": 10.0,
+        "integrator_max": 5.0
+    },
+    "setpoints": {
+        "description": "Schedule starts when warmup blend completes. The first entry should be the desired hover state (theta=0, alt=1000, u=0). Disturbances come later.",
+        "schedule": [
+            {
+                "time": 0.0,
+                "phi_deg": 0.0,
+                "theta_deg": 4.0,
+                "alt_ft": 1000.0,
+                "u_ft_s": 0.0
+            },
+            {
+                "time": 30.0,
+                "phi_deg": 0.0,
+                "theta_deg": 4.0,
+                "alt_ft": 1000.0,
+                "u_ft_s": 0.0
+            },
+            {
+                "time": 40.0,
+                "phi_deg": 5.0,
+                "theta_deg": 4.0,
+                "alt_ft": 1000.0,
+                "u_ft_s": 0.0
+            },
+            {
+                "time": 55.0,
+                "phi_deg": 0.0,
+                "theta_deg": 4.0,
+                "alt_ft": 1000.0,
+                "u_ft_s": 0.0
+            },
+            {
+                "time": 70.0,
+                "phi_deg": 0.0,
+                "theta_deg": 4.0,
+                "alt_ft": 1010.0,
+                "u_ft_s": 0.0
+            },
+            {
+                "time": 90.0,
+                "phi_deg": 0.0,
+                "theta_deg": 4.0,
+                "alt_ft": 1000.0,
+                "u_ft_s": 0.0
+            }
+        ]
+    },
+    "ports": {
+        "state_receive": 5007,
+        "control_send": 5006,
+        "control_ip": "127.0.0.1"
+    },
+    "logging": {
+        "filename": "pid_log.csv",
+        "rate_hz": 30
+    }
+}

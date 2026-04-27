@@ -1,0 +1,8 @@
+{
+    "WARNING" : "Tampering with this file may render the software unusable",
+    "type" : "free",
+    "organization" : "FloridaAtlanticUniversity",
+    "begin" : "20260413",
+    "end" : "20260613",
+    "key" : "5835651900a1a8r3e3l6v89325540230"
+}

@@ -1,0 +1,11 @@
+# Virtual environment
+venv/
+
+# OS files
+.DS_Store
+
+# Data logs (large files)
+*.csv
+
+# Archive
+archive/

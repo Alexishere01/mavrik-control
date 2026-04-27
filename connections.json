@@ -1,0 +1,171 @@
+{
+    "xexample1": {
+        "type": [
+            "send",
+            "receive"
+        ],
+        "channel_type": [
+            "UDP",
+            "udp",
+            "file"
+        ],
+        "refresh_rate": "float number of Hz (cyc/s) sim time to perform the connection",
+        "data_type": [
+            [
+                "state",
+                "controls",
+                "both",
+                "IMU",
+                "accelerometer",
+                "gyroscope",
+                "magnometer",
+                "ADS",
+                "pitot_static",
+                "stagnation_pressure",
+                "barometer",
+                "thermometer",
+                "GPS",
+                "aerodynamic_angles"
+            ],
+            "if 'type' is receive, this can only be controls"
+        ],
+        "udp specific items": [
+            "port_ID",
+            "IP_address",
+            "double_precision"
+        ],
+        "port_ID": "integer of the port number for the UDP connection",
+        "IP_address": "str of the IP address for the send connection. Defaults to the local machine",
+        "double_precision": "boolean, defaults to false",
+        "file specific items": [
+            "filename",
+            "pathname",
+        ],
+        "filename": "str of file name to write (send) or read (receive)",
+        "pathname": "optional str of the path for the file",
+        "sensor specific items": {
+            "bias_error[units]": [1],
+            "error_standard_deviation[units]": [1],
+            "min_value[units]": [1],
+            "max_value[units]": [1],
+            "bit_count": [1],
+            "units": "str",
+            "notes": {
+                "bias_error": "can take units to specify the units the user is giving the values in. The array size should correspond with the number of sensor values. If given as a single value, it will be applied to all sensor values. If omitted, it will default to 0",
+                "error_standard_deviation": "same as bias_error",
+                "min_value": "same as bias_error, except if omitted, sensor outputs will not be saturated. If provided, max_value must also be provided",
+                "max_value": "same as min_value",
+                "bit_count": "cannot take units. should be integer values. refers to the quantization resolution of the sensor values. if given as a single value, it will be applied to all sensor values. If omitted, quantization is not implemented for the sensor. If provided, min and max values must also be provided. bit_count is not a required input if min and max values are input.",
+                "units": "the units to sent values should be converted to before sending"
+            }
+        }
+    },
+    "xaccelerometer": {
+        "type": "send",
+        "channel_type": "file",
+        "refresh_rate": 100,
+        "data_type": "accelerometer",
+        "filename": "accel_datalog.csv",
+        "bias_error[m/min^2]": 1.0e-5,
+        "error_standard_deviation[ft/s^2]": 0.001,
+        "min_value[ft/s^2]": -300.0,
+        "max_value[ft/s^2]": 300.0,
+        "bit_count": 8,
+        "units": "gs",
+        "attitude[deg]": [0.0, 0.0, 0.0],
+        "location[ft]": [0, 0, 0]
+    },
+    "xgyroscope": {
+        "type": "send",
+        "channel_type": "file",
+        "refresh_rate": 100,
+        "data_type": "gyroscope",
+        "filename": "gyro_datalog.csv",
+        "bias_error[deg/min]": 1.0e-5,
+        "error_standard_deviation[deg/s]": 0.001,
+        "min_value[deg/s]": -300.0,
+        "max_value[deg/s]": 300.0,
+        "bit_count": 8,
+        "units": "deg/s",
+        "attitude[deg]": [0.0, 0.0, 0.0]
+    },
+    "xmagnometer": {
+        "type": "send",
+        "channel_type": "file",
+        "refresh_rate": 100,
+        "data_type": "magnometer",
+        "filename": "mag_datalog.csv",
+        "bias_error": 1.0e-5,
+        "error_standard_deviation": 0.001,
+        "min_value": -30000.0,
+        "max_value":  30000.0,
+        "bit_count": 8,
+        "attitude[deg]": [0.0, 0.0, 0.0]
+    },
+    "ximu": {
+        "type": "send",
+        "channel_type": "file",
+        "refresh_rate": 100,
+        "data_type": "imu",
+        "filename": "imu_datalog.csv",
+        "bias_error": 1.0e-5,
+        "error_standard_deviation": 0.001,
+        "units": ["gs", "gs", "gs", "deg/s", "deg/s", "deg/s", "nft", "nft", "nft"],
+        "attitude[deg]": [0.0, 0.0, 0.0],
+        "location[ft]": [0, 0, 0]
+    },
+    "xads": {
+        "type": "send",
+        "channel_type": "file",
+        "refresh_rate": 25,
+        "data_type": "ads",
+        "filename": "ads_datalog.csv",
+        "bias_error": 1.0e-5,
+        "error_standard_deviation": 0.001,
+        "units": ["lbf/in^2", "lbf/in^2", "lbf/in^2", "ft"]
+    },
+    "xgps": {
+        "type": "send",
+        "channel_type": "file",
+        "refresh_rate": 10,
+        "data_type": "gps",
+        "filename": "gps_datalog.csv",
+        "bias_error": 1.0e-5,
+        "error_standard_deviation": 3.0,
+        "units": ["ns", "ft", "ft", "ft", "kts", "kts", "ft/min"]
+    },
+    "xaero": {
+        "type": "send",
+        "channel_type": "file",
+        "refresh_rate": 10,
+        "data_type": "aerodynamic_angles",
+        "filename": "aero_datalog.csv",
+        "bias_error": 1.0e-5,
+        "error_standard_deviation": 0.1,
+        "units": "deg"
+    },
+    "graphics": {
+        "type": "send",
+        "channel_type": "udp",
+        "refresh_rate": 35,
+        "data_type": "state",
+        "port_ID": 5005
+    },
+    "data_log": {
+        "type": "send",
+        "channel_type": "file",
+        "refresh_rate": 30,
+        "data_type": "both",
+        "filename": "datalog.csv"
+    },
+    "xcontrols": {
+        "type": "receive",
+        "channel_type": "file",
+        "refresh_rate": 100,
+        "data_type": "controls",
+        "filename": "pilot_commands.csv",
+        "pathname": "..",
+        "number_of_values": 4,
+        "database_type": "rectilinear"
+    }
+}
