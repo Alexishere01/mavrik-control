@@ -1,47 +1,154 @@
 {
-    "description": "PID v2 — asymmetric mixer, recomputed trim for 90° tilt + 0 airspeed hover",
+    "description": "Team1 hover gains v2 - trim values match Team1 geometry, pitch_rate kp scaled for actual Iyy (~8.7 slug*ft^2 from MAVRIK component model, NOT the suspect 0.45 from CAD).",
     "loop_rate_hz": 50,
     "mode": "hover",
     "flaps_value": 0.99,
     "trim": {
-        "description": "Recomputed for 90° tilt, zero airspeed. W=160 lbf, T0=80 lbf/motor, fwd arm +3.10 ft, aft arm -4.90 ft. Torque+lift balance: T_fwd=49.0 lbf, T_aft=31.0 lbf.",
-        "throttle_fwd": 0.613,
-        "throttle_aft": 0.388,
+        "description": "Trim corrected for actual CG location (x=-0.129 ft from MAVRIK component model). Effective arms: tilt=+1.87 ft, vtol=-1.76 ft. Pitch balance requires T_aft slightly HIGHER than T_fwd (opposite of what nominal motor positions would suggest, because CG sits aft of origin).",
+        "throttle_fwd": 0.39,
+        "throttle_aft": 0.414,
         "aileron_deg": 0.0,
         "elevator_deg": 0.0,
         "rudder_deg": 0.0,
         "lift_balance_factor": 1.0,
-        "_note_lift_balance": "= sin(fwd_tilt). At 90° tilt, sin(90°)=1.0. When pitch loop adds delta to fwd, subtract same delta from aft to keep total lift constant."
+        "lift_balance_note": "= sin(fwd_tilt_angle). At flaps=0.99 motors are ~89.1 deg from horizontal, sin(89.1)=0.9999, so 1.0 is correct.",
+        "_arm_calc": "tilt arm = 1.74-(-0.129)=1.87 ft, vtol arm = -1.89-(-0.129)=-1.76 ft. T_fwd/T_aft = 1.76/1.87 = 0.941. With W=159.6 lbf: T_aft=41.1 lbf (=0.414 throttle), T_fwd=38.7 lbf (=0.390 throttle)."
     },
     "safety": {
-        "description": "Per-tick output limits to keep motors in safe regime",
         "max_throttle_step": 0.05,
         "max_surface_step_deg": 5.0,
         "ramp_in_seconds": 2.0,
-        "warmup_seconds": 5.0,
-        "_note_ramp": "For first ramp_in_seconds, blend controller output with pure trim. Prevents a startup-transient kick from saturating motors.",
-        "_note_warmup": "For first warmup_seconds, hold the vehicle INITIAL state as setpoint (instead of schedule). Lets all loops start at zero error."
+        "warmup_seconds": 5.0
     },
-    "altitude": {"kp": 0.3, "ki": 0.05, "kd": 0.1, "output_min": -5.0, "output_max": 5.0, "integrator_max": 10.0, "_note": "alt error (ft) -> climb rate cmd (ft/s)"},
-    "climb_rate": {"kp": 0.02, "ki": 0.005, "kd": 0.0, "output_min": -0.35, "output_max": 0.35, "integrator_max": 5.0, "_note": "climb rate error (ft/s) -> collective throttle delta"},
-    "roll_attitude": {"kp": 1.5, "ki": 0.0, "kd": 0.5, "output_min": -15.0, "output_max": 15.0, "_note": "roll error (deg) -> roll rate cmd (deg/s)"},
-    "roll_rate": {"kp": 0.006, "ki": 0.001, "kd": 0.0, "output_min": -0.15, "output_max": 0.15, "integrator_max": 3.0, "_note": "roll rate error (deg/s) -> differential throttle"},
-    "pitch_attitude": {"kp": 2.0, "ki": 0.5, "kd": 0.2, "output_min": -15.0, "output_max": 15.0, "integrator_max": 5.0},
-    "pitch_rate": {"kp": 0.001, "ki": 0.0002, "kd": 0.0001, "output_min": -0.1, "output_max": 0.1, "integrator_max": 3.0, "_note": "pitch rate error (deg/s) -> differential throttle"},
-    "u_velocity": {"enabled": false, "kp": 0.05, "ki": 0.005, "kd": 0.0, "output_min": -2.0, "output_max": 2.0, "integrator_max": 5.0, "_note": "DISABLED for 90° tilt — no forward-push disturbance to compensate for. Re-enable if vehicle drifts fwd/back at steady state."},
-    "yaw_attitude": {"enabled": false, "kp": 0.3, "ki": 0.0, "kd": 0.05, "output_min": -10.0, "output_max": 10.0, "_note": "Yaw control is weak in hover (no rudder authority, no rotor torque)."},
-    "yaw_rate": {"kp": 0.5, "ki": 0.02, "kd": 0.01, "output_min": -10.0, "output_max": 10.0, "integrator_max": 5.0},
+    "altitude": {
+        "kp": 0.3,
+        "ki": 0.05,
+        "kd": 0.1,
+        "output_min": -5.0,
+        "output_max": 5.0,
+        "integrator_max": 10.0
+    },
+    "climb_rate": {
+        "kp": 0.02,
+        "ki": 0.005,
+        "kd": 0.0,
+        "output_min": -0.35,
+        "output_max": 0.35,
+        "integrator_max": 5.0
+    },
+    "roll_attitude": {
+        "kp": 1.5,
+        "ki": 0.0,
+        "kd": 0.5,
+        "output_min": -15.0,
+        "output_max": 15.0
+    },
+    "roll_rate": {
+        "tuning_note": "demo Ixx=195 slug*ft^2 with kp=0.006. Team1 Ixx printed by MAVRIK ~ check from new mass-properties output. Estimated ~8 slug*ft^2 -> kp ~ 0.006 * 8/195 = 0.00025. Use this as starting point.",
+        "kp": 0.001,
+        "ki": 0.0001,
+        "kd": 0.0,
+        "output_min": -0.15,
+        "output_max": 0.15,
+        "integrator_max": 3.0
+    },
+    "pitch_attitude": {
+        "kp": 2.0,
+        "ki": 0.5,
+        "kd": 0.2,
+        "output_min": -15.0,
+        "output_max": 15.0,
+        "integrator_max": 5.0
+    },
+    "pitch_rate": {
+        "tuning_note": "Bumped from 0.00025 to 0.001 (4x). At 0.00025 saw 24deg pitch peak with oscillation period ~7s -- underdamped, too slow. 4x bump targets faster catch on initial transient. Halve if oscillates.",
+        "kp": 0.001,
+        "ki": 0.0001,
+        "kd": 5e-05,
+        "output_min": -0.1,
+        "output_max": 0.1,
+        "integrator_max": 3.0
+    },
+    "u_velocity": {
+        "enabled": false,
+        "kp": 0.05,
+        "ki": 0.005,
+        "kd": 0.0,
+        "output_min": -2.0,
+        "output_max": 2.0,
+        "integrator_max": 5.0
+    },
+    "yaw_attitude": {
+        "enabled": false,
+        "kp": 0.3,
+        "ki": 0.0,
+        "kd": 0.05,
+        "output_min": -10.0,
+        "output_max": 10.0,
+        "note": "Disabled in hover mode. Gains present so PID object can construct -- pid_vtol.py make_pid reads kp/ki/kd unconditionally."
+    },
+    "yaw_rate": {
+        "kp": 0.5,
+        "ki": 0.02,
+        "kd": 0.01,
+        "output_min": -10.0,
+        "output_max": 10.0,
+        "integrator_max": 5.0
+    },
     "setpoints": {
-        "description": "With true 90° tilt + zero airspeed, natural hover theta is 0°.",
+        "description": "Hold initial state for 5s warmup, then maintain hover at 1000 ft.",
         "schedule": [
-            {"time": 0.0,  "phi_deg": 0.0, "theta_deg": 0.0, "alt_ft": 1000.0, "u_ft_s": 0.0},
-            {"time": 30.0, "phi_deg": 0.0, "theta_deg": 0.0, "alt_ft": 1000.0, "u_ft_s": 0.0},
-            {"time": 40.0, "phi_deg": 5.0, "theta_deg": 0.0, "alt_ft": 1000.0, "u_ft_s": 0.0},
-            {"time": 55.0, "phi_deg": 0.0, "theta_deg": 0.0, "alt_ft": 1000.0, "u_ft_s": 0.0},
-            {"time": 70.0, "phi_deg": 0.0, "theta_deg": 0.0, "alt_ft": 1010.0, "u_ft_s": 0.0},
-            {"time": 90.0, "phi_deg": 0.0, "theta_deg": 0.0, "alt_ft": 1000.0, "u_ft_s": 0.0}
+            {
+                "time": 0.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 1000.0,
+                "u_ft_s": 0.0
+            },
+            {
+                "time": 30.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 1000.0,
+                "u_ft_s": 0.0
+            },
+            {
+                "time": 40.0,
+                "phi_deg": 5.0,
+                "theta_deg": 0.0,
+                "alt_ft": 1000.0,
+                "u_ft_s": 0.0
+            },
+            {
+                "time": 55.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 1000.0,
+                "u_ft_s": 0.0
+            },
+            {
+                "time": 70.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 1010.0,
+                "u_ft_s": 0.0
+            },
+            {
+                "time": 90.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 1000.0,
+                "u_ft_s": 0.0
+            }
         ]
     },
-    "ports": {"state_receive": 5007, "control_send": 5006, "control_ip": "127.0.0.1"},
-    "logging": {"filename": "pid_log.csv", "rate_hz": 30}
+    "ports": {
+        "state_receive": 5007,
+        "control_send": 5006,
+        "control_ip": "127.0.0.1"
+    },
+    "logging": {
+        "filename": "pid_log.csv",
+        "rate_hz": 30
+    }
 }

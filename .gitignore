@@ -4,8 +4,12 @@ venv/
 # OS files
 .DS_Store
 
-# Data logs (large files)
-*.csv
+# Data/log outputs (regenerated each run)
+datalog.csv
+pid_log.csv
 
 # Archive
 archive/
+
+# Handoff docs (internal context, not code)
+Handoff/

@@ -1,24 +1,19 @@
 {
-    "_comment": "Team 1 - Hybrid Tilt-Rotor VTOL | PteroSim / MAVRIK vehicle file",
-    "_config": "2 Tilt Motors (fwd, pitch-tilting) + 2 VTOL Motors (aft, fixed) + Wing + T-Tail",
-    "_units_note": "MAVRIK defaults: length=ft, mass=slug, force=lbf, angle=rad. Tags like [ft] or [kg] override.",
-    "_coordinate_system": "Body frame: +X forward, +Y right, +Z up. All locations relative to CG.",
     "components": {
         "fuselage": {
-            "_comment": "Approximate cuboid from overall L/W/H. Origin at CG.",
             "type": "cuboid",
-            "lengths[m]": [
-                2.4397,
-                2.4741,
-                0.6122,
-                0,
-                0,
-                0
+            "lengths[ft]": [
+                8.004265348,
+                8.117126244,
+                2.008530248,
+                0.0,
+                0.0,
+                0.0
             ],
-            "location[m]": [
-                0,
-                0,
-                0
+            "location[ft]": [
+                0.0,
+                0.0,
+                0.0
             ],
             "attitude[deg]": [
                 0.0,
@@ -26,15 +21,14 @@
                 0.0
             ],
             "include_aero": true,
-            "weight[kg]": 7.0
+            "weight[lbf]": 15.432339999999998
         },
         "main_wing": {
-            "_comment": "S1223 airfoil, 5 deg incidence. Semispan=3.609 ft, chord=MAC=1.640 ft. Aero from DATCOM.",
             "type": "wing",
-            "location[m]": [
-                0,
-                0,
-                0
+            "location[ft]": [
+                0.0,
+                0.0,
+                0.0
             ],
             "attitude[deg]": [
                 0,
@@ -42,10 +36,10 @@
                 0
             ],
             "dy[ft]": 0,
-            "semispan[m]": 1.1,
-            "chord[m]": [
-                0.5,
-                0.5
+            "semispan[ft]": 3.6089240000000005,
+            "chord[ft]": [
+                1.64042,
+                1.64042
             ],
             "mounting_angle[deg]": 5.0,
             "Cm0": -0.35478,
@@ -55,16 +49,15 @@
                 0.09
             ],
             "side": "both",
-            "weight[kg]": 3.0,
+            "weight[lbf]": 6.613859999999999,
             "control_surface": "aileron"
         },
         "h_stab": {
-            "_comment": "T-tail NACA 0009 horizontal stab. Arm ~1.83m aft.",
             "type": "wing",
-            "location[m]": [
-                -1.8288,
-                0,
-                0
+            "location[ft]": [
+                -6.000000192,
+                0.0,
+                0.0
             ],
             "attitude[deg]": [
                 0,
@@ -72,10 +65,10 @@
                 0
             ],
             "dy[ft]": 0,
-            "semispan[m]": 0.6324,
-            "chord[m]": [
-                0.2496,
-                0.2496
+            "semispan[ft]": 2.074803216,
+            "chord[ft]": [
+                0.818897664,
+                0.818897664
             ],
             "mounting_angle[deg]": 0,
             "Cm0": 0,
@@ -85,28 +78,27 @@
                 0.09
             ],
             "side": "both",
-            "weight[kg]": 1.0,
+            "weight[lbf]": 2.20462,
             "control_surface": "elevator",
             "control_symmetric": true
         },
         "v_stab": {
-            "_comment": "Vertical stab, dihedral 90 deg makes it vertical.",
             "type": "wing",
-            "location[m]": [
-                -1.8288,
-                0,
-                0
+            "location[ft]": [
+                -6.000000192,
+                0.0,
+                0.0
             ],
             "attitude[deg]": [
                 0,
                 0,
                 0
             ],
-            "dy[m]": 0.6324,
-            "semispan[m]": 0.4418,
-            "chord[m]": [
-                0.3341,
-                0.3341
+            "dy[ft]": 2.074803216,
+            "semispan[ft]": 1.449475112,
+            "chord[ft]": [
+                1.096128644,
+                1.096128644
             ],
             "mounting_angle[deg]": 0,
             "dihedral[deg]": 90,
@@ -117,613 +109,293 @@
                 0.09
             ],
             "side": "both",
-            "weight[kg]": 0.5,
+            "weight[lbf]": 1.10231,
             "control_surface": "rudder",
             "control_symmetric": false
         },
         "motor_tilt_right": {
-            "_comment": "Motor 1 - Tilt rotor, right side. Tilts 0-90 deg in pitch via 'flaps' control.",
-            "_spec": "T-Motor VZ32x12, KV=150, 2-blade, 32in prop.",
-            "type": "rotor",
-            "location[m]": {
-                "polynomials": {
-                    "yb": {
-                        "0": 1.183447
-                    }
-                },
-                "sines": {
-                    "xb": {
-                        "independent_variable": "flaps",
-                        "amplitude": 0.3048,
-                        "frequency": 0.7853981634,
-                        "phase[rad]": 0.7853981634,
-                        "offset": 0.3048
-                    },
-                    "zb": {
-                        "independent_variable": "flaps",
-                        "amplitude": -0.3048,
-                        "frequency": 0.7853981634,
-                        "phase[rad]": 0,
-                        "offset": 0
-                    }
-                }
-            },
+            "type": "cylinder",
+            "include_aero": false,
+            "weight[lbf]": 2.425082,
+            "lengths[ft]": [
+                2.666666752,
+                0.0,
+                0.083333336
+            ],
+            "location[ft]": [
+                1.73946199792,
+                3.8827002554799996,
+                0.14655184196
+            ],
             "attitude[deg]": {
                 "polynomials": {
                     "bank": {
                         "0": 0
                     },
+                    "elevation[deg]": {
+                        "0": 0,
+                        "flaps": 90
+                    },
                     "heading": {
                         "0": 0
                     }
-                },
-                "sines": {
-                    "elevation[deg]": {
-                        "independent_variable": "flaps",
-                        "amplitude": 90,
-                        "frequency": 0.7853981634,
-                        "phase[rad]": 0,
-                        "offset": 0
-                    }
-                }
-            },
-            "lengths[in]": [
-                32.0,
-                1.5,
-                1.0
-            ],
-            "chord[in]": [
-                3.0,
-                1.8
-            ],
-            "thickness": [
-                0.12,
-                0.12
-            ],
-            "number_of_blades": 2,
-            "weight[kg]": 1.1,
-            "contribute_to_vehicle_mass_cg": false,
-            "rotation_direction": "ccw",
-            "xmotor": {
-                "type": "rpm",
-                "control": "rpm",
-                "J_magnitude_limits": [
-                    -0.1,
-                    0.55
-                ]
-            },
-            "motor": {
-                "type": "battery",
-                "battery": {
-                    "#_parallel": 1,
-                    "#_series": 14,
-                    "cell": {
-                        "capacity[mA-hr]": 5000,
-                        "resistance[mO]": 14,
-                        "xvoltage_curve[V]": {
-                            "SOC": [
-                                0.0,
-                                0.05,
-                                0.1,
-                                0.2,
-                                0.3,
-                                0.4,
-                                0.5,
-                                0.6,
-                                0.7,
-                                0.8,
-                                0.9,
-                                1.0
-                            ],
-                            "voltage": [
-                                3.0,
-                                3.5,
-                                3.6,
-                                3.7,
-                                3.75,
-                                3.79,
-                                3.83,
-                                3.87,
-                                3.93,
-                                4.0,
-                                4.1,
-                                4.2
-                            ]
-                        }
-                    },
-                    "power_aux[W]": 10,
-                    "voltage_aux[V]": 5
-                },
-                "ESC_resistance[mO]": 5,
-                "resistance[mO]": 8,
-                "kV[rev/min/V]": 150,
-                "gearbox_ratio": 1,
-                "gearbox_efficiency": 1,
-                "Io[A]": 4.1,
-                "Eo[V]": 10.0,
-                "solver": {
-                    "max_iterations": 50,
-                    "tolerance": 1e-06,
-                    "torque_gain": 50.0
-                },
-                "control": "throttleTiltRight"
-            },
-            "aerodynamics": {
-                "_comment": "CT/CPb polynomials derived from VL1040+VZ32*12 bench test data at 60V (ligpower.com). CT0 validated: 45kg at 5812 RPM.",
-                "polynomials": {
-                    "CT": {
-                        "0": 0.087989,
-                        "J": -0.105952,
-                        "J^2": -0.111605
-                    },
-                    "CPb": {
-                        "0": 0.034931,
-                        "J": 0.007655,
-                        "J^2": -0.129374
-                    },
-                    "CNa": {
-                        "0": 0.3
-                    },
-                    "Cna": {
-                        "0": -0.007
-                    }
                 }
             }
+        },
+        "motor_tilt_right_custom": {
+            "type": "custom",
+            "location[ft]": [
+                1.73946199792,
+                3.8827002554799996,
+                0.14655184196
+            ],
+            "attitude[deg]": {
+                "polynomials": {
+                    "bank": {
+                        "0": 0
+                    },
+                    "elevation[deg]": {
+                        "0": 0,
+                        "flaps": 90
+                    },
+                    "heading": {
+                        "0": 0
+                    }
+                }
+            },
+            "aerodynamics": {
+                "reference": {
+                    "area": 1,
+                    "longitudinal_length": 1,
+                    "lateral_length": 1,
+                    "moment_reference_location": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "thrusts": {
+                    "Cx": {
+                        "Ta": 0.0,
+                        "T0": 99.24,
+                        "independent_variable": "throttleFwdRight"
+                    }
+                }
+            },
+            "mass": 0
         },
         "motor_tilt_left": {
-            "_comment": "Motor 2 - Tilt rotor, left side. Mirror of right.",
-            "_spec": "T-Motor VZ32x12, KV=150, 2-blade, 32in prop.",
-            "type": "rotor",
-            "location[m]": {
-                "polynomials": {
-                    "yb": {
-                        "0": -1.183447
-                    }
-                },
-                "sines": {
-                    "xb": {
-                        "independent_variable": "flaps",
-                        "amplitude": 0.3048,
-                        "frequency": 0.7853981634,
-                        "phase[rad]": 0.7853981634,
-                        "offset": 0.3048
-                    },
-                    "zb": {
-                        "independent_variable": "flaps",
-                        "amplitude": -0.3048,
-                        "frequency": 0.7853981634,
-                        "phase[rad]": 0,
-                        "offset": 0
-                    }
-                }
-            },
+            "type": "cylinder",
+            "include_aero": false,
+            "weight[lbf]": 2.425082,
+            "lengths[ft]": [
+                2.666666752,
+                0.0,
+                0.083333336
+            ],
+            "location[ft]": [
+                1.73946199792,
+                -3.8827002554799996,
+                0.14655184196
+            ],
             "attitude[deg]": {
                 "polynomials": {
                     "bank": {
                         "0": 0
                     },
+                    "elevation[deg]": {
+                        "0": 0,
+                        "flaps": 90
+                    },
                     "heading": {
                         "0": 0
                     }
-                },
-                "sines": {
-                    "elevation[deg]": {
-                        "independent_variable": "flaps",
-                        "amplitude": 90,
-                        "frequency": 0.7853981634,
-                        "phase[rad]": 0,
-                        "offset": 0
-                    }
-                }
-            },
-            "lengths[in]": [
-                32.0,
-                1.5,
-                1.0
-            ],
-            "chord[in]": [
-                3.0,
-                1.8
-            ],
-            "thickness": [
-                0.12,
-                0.12
-            ],
-            "number_of_blades": 2,
-            "weight[kg]": 1.1,
-            "contribute_to_vehicle_mass_cg": false,
-            "rotation_direction": "cw",
-            "xmotor": {
-                "type": "rpm",
-                "control": "rpm",
-                "J_magnitude_limits": [
-                    -0.1,
-                    0.55
-                ]
-            },
-            "motor": {
-                "type": "battery",
-                "battery": {
-                    "#_parallel": 1,
-                    "#_series": 14,
-                    "cell": {
-                        "capacity[mA-hr]": 5000,
-                        "resistance[mO]": 14,
-                        "xvoltage_curve[V]": {
-                            "SOC": [
-                                0.0,
-                                0.05,
-                                0.1,
-                                0.2,
-                                0.3,
-                                0.4,
-                                0.5,
-                                0.6,
-                                0.7,
-                                0.8,
-                                0.9,
-                                1.0
-                            ],
-                            "voltage": [
-                                3.0,
-                                3.5,
-                                3.6,
-                                3.7,
-                                3.75,
-                                3.79,
-                                3.83,
-                                3.87,
-                                3.93,
-                                4.0,
-                                4.1,
-                                4.2
-                            ]
-                        }
-                    },
-                    "power_aux[W]": 10,
-                    "voltage_aux[V]": 5
-                },
-                "ESC_resistance[mO]": 5,
-                "resistance[mO]": 8,
-                "kV[rev/min/V]": 150,
-                "gearbox_ratio": 1,
-                "gearbox_efficiency": 1,
-                "Io[A]": 4.1,
-                "Eo[V]": 10.0,
-                "solver": {
-                    "max_iterations": 50,
-                    "tolerance": 1e-06,
-                    "torque_gain": 50.0
-                },
-                "control": "throttleTiltLeft"
-            },
-            "aerodynamics": {
-                "_comment": "CT/CPb polynomials derived from VL1040+VZ32*12 bench test data at 60V (ligpower.com). CT0 validated: 45kg at 5812 RPM.",
-                "polynomials": {
-                    "CT": {
-                        "0": 0.087989,
-                        "J": -0.105952,
-                        "J^2": -0.111605
-                    },
-                    "CPb": {
-                        "0": 0.034931,
-                        "J": 0.007655,
-                        "J^2": -0.129374
-                    },
-                    "CNa": {
-                        "0": 0.3
-                    },
-                    "Cna": {
-                        "0": -0.007
-                    }
                 }
             }
+        },
+        "motor_tilt_left_custom": {
+            "type": "custom",
+            "location[ft]": [
+                1.73946199792,
+                -3.8827002554799996,
+                0.14655184196
+            ],
+            "attitude[deg]": {
+                "polynomials": {
+                    "bank": {
+                        "0": 0
+                    },
+                    "elevation[deg]": {
+                        "0": 0,
+                        "flaps": 90
+                    },
+                    "heading": {
+                        "0": 0
+                    }
+                }
+            },
+            "aerodynamics": {
+                "reference": {
+                    "area": 1,
+                    "longitudinal_length": 1,
+                    "lateral_length": 1,
+                    "moment_reference_location": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "thrusts": {
+                    "Cx": {
+                        "Ta": 0.0,
+                        "T0": 99.24,
+                        "independent_variable": "throttleFwdLeft"
+                    }
+                }
+            },
+            "mass": 0
         },
         "motor_vtol_right": {
-            "_comment": "Motor 3 - VTOL fixed rotor, right-aft. Always vertical (no tilt).",
-            "_spec": "T-Motor VZ32x12, KV=150, 2-blade, 32in prop.",
-            "type": "rotor",
-            "location[m]": [
-                0.576853,
-                1.183447,
-                -0.028862
+            "type": "cylinder",
+            "include_aero": false,
+            "weight[lbf]": 2.425082,
+            "lengths[ft]": [
+                2.666666752,
+                0.0,
+                0.083333336
+            ],
+            "location[ft]": [
+                -1.8925623965199998,
+                3.8827002554799996,
+                -0.09469160407999999
             ],
             "attitude[deg]": [
                 0,
+                90,
+                0
+            ]
+        },
+        "motor_vtol_right_custom": {
+            "type": "custom",
+            "location[ft]": [
+                -1.8925623965199998,
+                3.8827002554799996,
+                -0.09469160407999999
+            ],
+            "attitude[deg]": [
                 0,
+                90,
                 0
             ],
-            "lengths[in]": [
-                32.0,
-                1.5,
-                1.0
-            ],
-            "chord[in]": [
-                3.0,
-                1.8
-            ],
-            "thickness": [
-                0.12,
-                0.12
-            ],
-            "number_of_blades": 2,
-            "weight[kg]": 1.1,
-            "contribute_to_vehicle_mass_cg": false,
-            "rotation_direction": "cw",
-            "xmotor": {
-                "type": "rpm",
-                "control": "rpm",
-                "J_magnitude_limits": [
-                    -0.1,
-                    0.55
-                ]
-            },
-            "motor": {
-                "type": "battery",
-                "battery": {
-                    "#_parallel": 1,
-                    "#_series": 14,
-                    "cell": {
-                        "capacity[mA-hr]": 5000,
-                        "resistance[mO]": 14,
-                        "xvoltage_curve[V]": {
-                            "SOC": [
-                                0.0,
-                                0.05,
-                                0.1,
-                                0.2,
-                                0.3,
-                                0.4,
-                                0.5,
-                                0.6,
-                                0.7,
-                                0.8,
-                                0.9,
-                                1.0
-                            ],
-                            "voltage": [
-                                3.0,
-                                3.5,
-                                3.6,
-                                3.7,
-                                3.75,
-                                3.79,
-                                3.83,
-                                3.87,
-                                3.93,
-                                4.0,
-                                4.1,
-                                4.2
-                            ]
-                        }
-                    },
-                    "power_aux[W]": 10,
-                    "voltage_aux[V]": 5
-                },
-                "ESC_resistance[mO]": 5,
-                "resistance[mO]": 8,
-                "kV[rev/min/V]": 150,
-                "gearbox_ratio": 1,
-                "gearbox_efficiency": 1,
-                "Io[A]": 4.1,
-                "Eo[V]": 10.0,
-                "solver": {
-                    "max_iterations": 50,
-                    "tolerance": 1e-06,
-                    "torque_gain": 50.0
-                },
-                "control": "throttleVTOLRight"
-            },
             "aerodynamics": {
-                "_comment": "CT/CPb polynomials derived from VL1040+VZ32*12 bench test data at 60V (ligpower.com). CT0 validated: 45kg at 5812 RPM.",
-                "polynomials": {
-                    "CT": {
-                        "0": 0.087989,
-                        "J": -0.105952,
-                        "J^2": -0.111605
-                    },
-                    "CPb": {
-                        "0": 0.034931,
-                        "J": 0.007655,
-                        "J^2": -0.129374
-                    },
-                    "CNa": {
-                        "0": 0.3
-                    },
-                    "Cna": {
-                        "0": -0.007
+                "reference": {
+                    "area": 1,
+                    "longitudinal_length": 1,
+                    "lateral_length": 1,
+                    "moment_reference_location": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "thrusts": {
+                    "Cx": {
+                        "Ta": 0.0,
+                        "T0": 99.24,
+                        "independent_variable": "throttleAftRight"
                     }
                 }
-            }
+            },
+            "mass": 0
         },
         "motor_vtol_left": {
-            "_comment": "Motor 4 - VTOL fixed rotor, left-aft. Always vertical.",
-            "_spec": "T-Motor VZ32x12, KV=150, 2-blade, 32in prop.",
-            "type": "rotor",
-            "location[m]": [
-                0.576853,
-                -1.183447,
-                -0.028862
+            "type": "cylinder",
+            "include_aero": false,
+            "weight[lbf]": 2.425082,
+            "lengths[ft]": [
+                2.666666752,
+                0.0,
+                0.083333336
+            ],
+            "location[ft]": [
+                -1.8925623965199998,
+                -3.8827002554799996,
+                -0.09469160407999999
             ],
             "attitude[deg]": [
                 0,
+                90,
+                0
+            ]
+        },
+        "motor_vtol_left_custom": {
+            "type": "custom",
+            "location[ft]": [
+                -1.8925623965199998,
+                -3.8827002554799996,
+                -0.09469160407999999
+            ],
+            "attitude[deg]": [
                 0,
+                90,
                 0
             ],
-            "lengths[in]": [
-                32.0,
-                1.5,
-                1.0
-            ],
-            "chord[in]": [
-                3.0,
-                1.8
-            ],
-            "thickness": [
-                0.12,
-                0.12
-            ],
-            "number_of_blades": 2,
-            "weight[kg]": 1.1,
-            "contribute_to_vehicle_mass_cg": false,
-            "rotation_direction": "ccw",
-            "xmotor": {
-                "type": "rpm",
-                "control": "rpm",
-                "J_magnitude_limits": [
-                    -0.1,
-                    0.55
-                ]
-            },
-            "motor": {
-                "type": "battery",
-                "battery": {
-                    "#_parallel": 1,
-                    "#_series": 14,
-                    "cell": {
-                        "capacity[mA-hr]": 5000,
-                        "resistance[mO]": 14,
-                        "xvoltage_curve[V]": {
-                            "SOC": [
-                                0.0,
-                                0.05,
-                                0.1,
-                                0.2,
-                                0.3,
-                                0.4,
-                                0.5,
-                                0.6,
-                                0.7,
-                                0.8,
-                                0.9,
-                                1.0
-                            ],
-                            "voltage": [
-                                3.0,
-                                3.5,
-                                3.6,
-                                3.7,
-                                3.75,
-                                3.79,
-                                3.83,
-                                3.87,
-                                3.93,
-                                4.0,
-                                4.1,
-                                4.2
-                            ]
-                        }
-                    },
-                    "power_aux[W]": 10,
-                    "voltage_aux[V]": 5
-                },
-                "ESC_resistance[mO]": 5,
-                "resistance[mO]": 8,
-                "kV[rev/min/V]": 150,
-                "gearbox_ratio": 1,
-                "gearbox_efficiency": 1,
-                "Io[A]": 4.1,
-                "Eo[V]": 10.0,
-                "solver": {
-                    "max_iterations": 50,
-                    "tolerance": 1e-06,
-                    "torque_gain": 50.0
-                },
-                "control": "throttleVTOLLeft"
-            },
             "aerodynamics": {
-                "_comment": "CT/CPb polynomials derived from VL1040+VZ32*12 bench test data at 60V (ligpower.com). CT0 validated: 45kg at 5812 RPM.",
-                "polynomials": {
-                    "CT": {
-                        "0": 0.087989,
-                        "J": -0.105952,
-                        "J^2": -0.111605
-                    },
-                    "CPb": {
-                        "0": 0.034931,
-                        "J": 0.007655,
-                        "J^2": -0.129374
-                    },
-                    "CNa": {
-                        "0": 0.3
-                    },
-                    "Cna": {
-                        "0": -0.007
+                "reference": {
+                    "area": 1,
+                    "longitudinal_length": 1,
+                    "lateral_length": 1,
+                    "moment_reference_location": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "thrusts": {
+                    "Cx": {
+                        "Ta": 0.0,
+                        "T0": 99.24,
+                        "independent_variable": "throttleAftLeft"
                     }
                 }
-            }
+            },
+            "mass": 0
         },
         "battery": {
-            "_comment": "14S LiPo, 1077 Wh. Point mass only - no aero.",
             "type": "cuboid",
             "include_aero": false,
-            "lengths[m]": [
-                0.3,
-                0.15,
-                0.1,
-                0,
-                0,
-                0
+            "lengths[ft]": [
+                0.9842519999999999,
+                0.49212599999999995,
+                0.32808400000000004,
+                0.0,
+                0.0,
+                0.0
             ],
-            "location[m]": [
-                -0.0562755,
-                0,
-                -0.030862
+            "location[ft]": [
+                0.18463091142,
+                0.0,
+                -0.10125328408
             ],
-            "weight[kg]": 6.579943
+            "weight[lbf]": 14.50627393666
         },
         "payload_slot": {
-            "_comment": "PAYLOAD POINT MASS - easy to swap. 3 configs defined in input.json. Set weight[kg]=0 to remove.",
-            "_payload_options": {
-                "none": {
-                    "weight[kg]": 0,
-                    "location[m]": [
-                        0.274744,
-                        0,
-                        -0.15
-                    ]
-                },
-                "110lbs": {
-                    "weight[kg]": 49.895,
-                    "location[m]": [
-                        0.274744,
-                        0,
-                        -0.15731
-                    ]
-                },
-                "165lbs": {
-                    "weight[kg]": 74.843,
-                    "location[m]": [
-                        0.274744,
-                        0,
-                        -0.123691
-                    ]
-                },
-                "220lbs": {
-                    "weight[kg]": 99.79,
-                    "location[m]": [
-                        0.274744,
-                        0,
-                        -0.123334
-                    ]
-                }
-            },
             "type": "cuboid",
             "include_aero": false,
-            "lengths[m]": [
-                0.1,
-                0.1,
-                0.1,
-                0,
-                0,
-                0
+            "lengths[ft]": [
+                0.32808400000000004,
+                0.32808400000000004,
+                0.32808400000000004,
+                0.0,
+                0.0,
+                0.0
             ],
-            "location[m]": [
-                0.274744,
-                0,
-                -0.15731
+            "location[ft]": [
+                -0.00280183736,
+                0.0,
+                -0.69421262064
             ],
-            "weight[kg]": 49.895
+            "weight[lbf]": 109.9995149
         }
     },
     "control_effectors": {
@@ -760,28 +432,28 @@
             ],
             "time_constant": 0.01
         },
-        "throttleTiltRight": {
+        "throttleFwdRight": {
             "magnitude_limits": [
                 0,
                 1
             ],
             "time_constant": 0.1
         },
-        "throttleTiltLeft": {
+        "throttleFwdLeft": {
             "magnitude_limits": [
                 0,
                 1
             ],
             "time_constant": 0.1
         },
-        "throttleVTOLRight": {
+        "throttleAftRight": {
             "magnitude_limits": [
                 0,
                 1
             ],
             "time_constant": 0.1
         },
-        "throttleVTOLLeft": {
+        "throttleAftLeft": {
             "magnitude_limits": [
                 0,
                 1
@@ -789,7 +461,6 @@
             "time_constant": 0.1
         },
         "flaps": {
-            "_comment": "0 = motors pointing up (hover), 1 = motors pointing forward (cruise)",
             "magnitude_limits": [
                 0,
                 1
@@ -802,9 +473,8 @@
         }
     },
     "reference": {
-        "_comment": "From Parameters.xlsx: wing area=1.1m2, MAC=0.5m, wingspan=2.2m",
-        "area[m^2]": 1.1,
-        "longitudinal_length[m]": 0.5,
-        "lateral_length[m]": 2.2
+        "area[ft^2]": 11.840302216160001,
+        "longitudinal_length[ft]": 1.64042,
+        "lateral_length[ft]": 7.217848000000001
     }
 }
