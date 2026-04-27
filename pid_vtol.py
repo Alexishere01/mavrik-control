@@ -495,15 +495,18 @@ class VTOLController:
             q_cmd = self.pid_pitch_att.update(theta_err, t)
             pitch_diff = self.pid_pitch_rate.update(q_cmd - q_d, t)
 
-            # === YAW CASCADE — differential tilt for yaw authority in hover ===
+            # === YAW — outer-loop only (servo is a slow actuator) ===
+            # Vectored yaw via differential tilt.
             # Positive yaw_diff_flaps = yaw RIGHT:
             #   flapsRight increases (right arm more vertical, less fwd push on right)
             #   flapsLeft decreases (left arm tilts forward, more fwd push on left)
             #   Net: left side pushes forward → vehicle yaws right
+            # NOTE: No inner rate cascade — servo time constant (~0.1s) is too slow
+            #       for rate-loop control. Attitude PID drives flaps directly.
             if self.yaw_loop_enabled:
                 psi_err = wrap_angle((psi_cmd - psi_d) * DEG2RAD) * RAD2DEG
-                r_cmd_d = self.pid_yaw_att.update(psi_err, t)
-                yaw_diff_flaps = self.pid_yaw_rate.update(r_cmd_d - r_d, t)
+                yaw_diff_flaps = self.pid_yaw_att.update(psi_err, t)
+                r_cmd_d = 0.0  # no rate command (outer loop only)
             else:
                 r_cmd_d = 0.0
                 yaw_diff_flaps = 0.0

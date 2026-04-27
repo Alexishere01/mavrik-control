@@ -82,12 +82,13 @@
     },
     "yaw_attitude": {
         "enabled": true,
-        "kp": 0.3,
-        "ki": 0.0,
-        "kd": 0.05,
-        "output_min": -10.0,
-        "output_max": 10.0,
-        "note": "Enabled for yaw test. Rudder authority is weak in hover so expect slow response. 15deg heading change test at t=100s."
+        "tuning_note": "Outer-loop only (no rate cascade). Output is flaps differential directly. Servo is a slow actuator — no inner rate loop. kp=0.0003 gives ~0.003 flaps per 10deg heading error.",
+        "kp": 0.0003,
+        "ki": 0.00005,
+        "kd": 0.0001,
+        "output_min": -0.03,
+        "output_max": 0.03,
+        "integrator_max": 0.02
     },
     "yaw_rate": {
         "tuning_note": "Output is now flaps differential (not rudder deg). ±0.03 max = ±2.7deg tilt asymmetry. kp=0.001 is conservative — at ~480 ft*lbf/unit_flaps_diff, this gives ~0.48 ft*lbf per deg/s rate error.",
