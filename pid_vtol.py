@@ -321,6 +321,11 @@ class VTOLController:
         # Networking
         ports = c["ports"]
         self.state_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.state_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            self.state_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        except AttributeError:
+            pass  # SO_REUSEPORT not available on all platforms
         self.state_sock.bind(("0.0.0.0", ports["state_receive"]))
         self.state_sock.setblocking(False)
         self.ctrl_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
