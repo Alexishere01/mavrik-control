@@ -8,7 +8,7 @@ ArduPilot SITL launches with its JSON backend pointed at this bridge:
     sim_vehicle.py -v ArduCopter -f quad --model JSON:127.0.0.1
 
 ArduPilot sends a binary PWM packet to UDP :9002. The bridge maps the PWM
-channels to MAVRIK's 8 control effectors, forwards them to MAVRIK on :5006,
+channels to MAVRIK's 9 control effectors, forwards them to MAVRIK on :5006,
 pulls the latest MAVRIK state from :5009, and replies to ArduPilot with a
 JSON string containing timestamp, IMU, position, velocity, and attitude.
 
@@ -59,10 +59,10 @@ ARDUPILOT_FRAME_32CH_SIZE = struct.calcsize(ARDUPILOT_FRAME_32CH_FMT)
 MAVRIK_STATE_FMT = "<14f"
 MAVRIK_STATE_SIZE = struct.calcsize(MAVRIK_STATE_FMT)
 
-# MAVRIK controls packet: 8 little-endian floats
-# Order defined by demo_VTOL.json effector block:
-#   aileron, elevator, rudder, thrFR, thrFL, thrAR, thrAL, flaps
-MAVRIK_CONTROL_FMT = "<8f"
+# MAVRIK controls packet: 9 little-endian floats
+# Order defined by Team1_VTOL.json effector block:
+#   aileron, elevator, rudder, thrFR, thrFL, thrAR, thrAL, flapsRight, flapsLeft
+MAVRIK_CONTROL_FMT = "<9f"
 
 
 # ---------------------------------------------------------------------------
@@ -141,7 +141,7 @@ def pwm_to_symmetric(pwm_us: int) -> float:
 
 
 class PWMMapper:
-    """ArduCopter quad -> MAVRIK 8 effectors.
+    """ArduCopter quad -> MAVRIK 9 effectors.
 
     ArduCopter default motor order (frame X):
         CH1 = motor 1 (front-right, CW)
@@ -149,8 +149,8 @@ class PWMMapper:
         CH3 = motor 3 (front-left, CCW)
         CH4 = motor 4 (rear-right, CCW)
 
-    MAVRIK demo_VTOL effector order:
-        aileron, elevator, rudder, thrFR, thrFL, thrAR, thrAL, flaps
+    MAVRIK Team1_VTOL effector order:
+        aileron, elevator, rudder, thrFR, thrFL, thrAR, thrAL, flapsRight, flapsLeft
     """
 
     def __init__(self, flaps_fixed: float = 0.99,
@@ -177,8 +177,9 @@ class PWMMapper:
         elevator = pwm_to_symmetric(pwm[self.elevator_channel - 1]) * 15.0 if self.elevator_channel else 0.0
         rudder   = pwm_to_symmetric(pwm[self.rudder_channel - 1])   * 15.0 if self.rudder_channel   else 0.0
 
-        # MAVRIK packet order: aileron, elevator, rudder, thrFR, thrFL, thrAR, thrAL, flaps
-        return (aileron, elevator, rudder, thr_fr, thr_fl, thr_ar, thr_al, self.flaps_fixed)
+        # MAVRIK packet order: aileron, elevator, rudder, thrFR, thrFL, thrAR, thrAL, flapsRight, flapsLeft
+        return (aileron, elevator, rudder, thr_fr, thr_fl, thr_ar, thr_al,
+                self.flaps_fixed, self.flaps_fixed)
 
 
 # ---------------------------------------------------------------------------
