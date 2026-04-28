@@ -1,0 +1,75 @@
+# Yaw Tuning History — Mavrik VTOL
+# Date: 2025-04-27
+# Vehicle: Team1_VTOL
+# Test: 140s hover sequence (roll test t=40, alt step t=60, yaw cmd t=100)
+#
+# Architecture Evolution:
+#   v1-v5: Dual-loop — attitude PID → rate PID → differential THROTTLE
+#          + proportional heading error → differential FLAPS
+#          Result: Differential throttle had ZERO yaw effect (MAVRIK ignores Cl polynomial)
+#          Flaps were doing all the work but with proportional-only control → oscillation
+#
+#   v6-v10: Cascade-through-flaps — attitude PID → rate PID → differential FLAPS
+#           Differential throttle disabled
+#           Result: Rate damping eliminated oscillation, proper authority achieved
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Ver  att_kp  att_ki  att_kd  att_max | rate_kp  rate_ki  rate_kd  rate_max | Architecture
+# ───  ------  ------  ------  ------- | -------  -------  -------  -------- | ────────────
+# v1   0.50    0.020   0.050   ±15.0   | 0.005    0.001    0.0005   ±0.08    | throttle+prop_flaps
+# v2   0.10    0.002   0.020   ±5.0    | 0.001    0.0001   0.001    ±0.03    | throttle+prop_flaps
+# v3   0.10    0.000   0.030   ±5.0    | 0.001    0.000    0.003    ±0.06    | throttle+prop_flaps
+# v4   0.30    0.000   0.050   ±5.0    | 0.002    0.000    0.005    ±0.06    | throttle+prop_flaps
+# v5   0.30    0.000   0.050   ±3.0    | 0.002    0.000    0.005    ±0.02    | throttle+prop_flaps
+# v6   0.30    0.000   0.050   ±3.0    | 0.003    0.000    0.002    ±0.04    | cascade-flaps ← architecture change
+# v7   0.30    0.000   0.050   ±10.0   | 0.005    0.000    0.002    ±0.06    | cascade-flaps
+# v8★  0.50    0.010   0.080   ±10.0   | 0.010    0.000    0.004    ±0.12    | cascade-flaps ← SELECTED
+# v9   0.80    0.010   0.120   ±10.0   | 0.015    0.000    0.006    ±0.15    | cascade-flaps
+# v10  0.60    0.010   0.080   ±10.0   | 0.010    0.000    0.004    ±0.13    | cascade-flaps
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# RESULTS:
+#
+# Ver  roll→yaw_pk  yaw_cmd_err  max_rate  max_theta  alt_loss  notes
+# ───  ───────────  ───────────  ────────  ─────────  ────────  ─────
+# pre  118°         ∞ (diverge)  ∞         ok         ok        no yaw control at all
+# v1   81°          70°          60 deg/s  ok         ok        violent oscillation, both PIDs saturated
+# v2   81°          57°          52 deg/s  ok         ok        still oscillating, gains too hot
+# v3   81°          57°          52 deg/s  ok         ok        more kd didn't help, same saturation
+# v4   82°          60°          55 deg/s  ok         ok        higher gains → worse (more energy in swings)
+# v5   81°          52°          49 deg/s  ok         ok        lower limits → same peaks → proof throttle does nothing!
+# v6   88°          ∞ (drifts)   9 deg/s   ok         ok        NO OSCILLATION but too little authority
+# v7   52°          15°          8 deg/s   ok         ok        first real working yaw! tracking 15° cmd
+# v8★  18°          14°          5 deg/s   3.4°       ok        BEST BALANCE — selected as final
+# v9   11°          13°          7 deg/s   13°        -10ft     yaw improved but kd noise → flap chatter → pitch
+# v10  15°          14°          6 deg/s   5°         -4ft      slight improvement over v8 but worse pitch
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# KEY FINDINGS:
+#
+# 1. Differential throttle provides ZERO yaw torque in MAVRIK
+#    Proof: v3/v4/v5 changed throttle limit from ±0.03 to ±0.06 to ±0.02
+#    Result: identical 81° yaw peak in all three → throttle does nothing
+#    Root cause: MAVRIK ignores Cl polynomial in custom component thrusts blocks
+#
+# 2. Differential flaps (vectored tilt) IS the yaw actuator
+#    The forward tilt motors create a horizontal force couple when tilted asymmetrically
+#    At flaps=0.99 (hover), even small asymmetry creates meaningful yaw torque
+#
+# 3. Proportional-only flaps control causes limit-cycle oscillation (v1-v5)
+#    Fix: Route full cascade PID (att→rate→flaps) to provide rate damping (v6+)
+#
+# 4. Rate PID derivative (kd) above 0.004 amplifies sensor noise
+#    v9 kd=0.006 → flaps chatter ±0.15 at ~10Hz → 13° pitch disturbance
+#    v8 kd=0.004 → clean, no chatter
+#
+# 5. Flaps authority limit: ±0.12 is the sweet spot
+#    Lower (±0.06) = too sluggish, higher (±0.15) = pitch disturbance from tilt
+#    At ±0.12, tilted motor at 78° → 97% lift retained, ~25 ft·lbf yaw torque
+#
+# 6. Roll-to-yaw coupling is the dominant disturbance
+#    5° roll command creates sustained yaw drift that the controller must fight
+#    This is an inherent property of the vehicle, not a controller bug

@@ -505,37 +505,32 @@ class VTOLController:
             q_cmd = self.pid_pitch_att.update(theta_err, t)
             pitch_diff = self.pid_pitch_rate.update(q_cmd - q_d, t)
 
-            # === YAW — DUAL-LOOP: outer (flaps) + inner (diff throttle) ===
+            # === YAW — FULL CASCADE through FLAPS ===
             #
-            # OUTER LOOP — Yaw attitude PID:
-            #   heading error → attitude PID → rate command + flaps differential
-            #   Differential flaps = vectored tilt for heading tracking (slow)
+            # After 5 test iterations, data proved:
+            #   - Differential throttle creates NO yaw torque (MAVRIK ignores Cl polynomial)
+            #   - Differential flaps ARE the yaw actuator (vectored tilt)
+            #   - Previous proportional-only flaps control caused limit-cycle oscillation
             #
-            # INNER LOOP — Yaw rate PID:
-            #   rate command → rate PID → differential throttle
-            #   Differential throttle = torque reaction for rate damping (fast)
+            # FIX: Route the full cascade PID through flaps:
+            #   Outer: heading error → attitude PID → rate command
+            #   Inner: rate error → rate PID → differential flaps
             #
-            # Motor torque reaction signs (confirmed from parameters sheet):
-            #   Motor 1 Fwd Right (CCW): +diff → more CCW spin → more CW reaction → yaw RIGHT
-            #   Motor 2 Fwd Left  (CW):  -diff → less CW spin  → less CCW reaction → yaw RIGHT
-            #   Motor 3 Aft Right (CW):  -diff → less CW spin  → less CCW reaction → yaw RIGHT
-            #   Motor 4 Aft Left  (CCW): +diff → more CCW spin → more CW reaction → yaw RIGHT
-            #   Pattern: diagonal motors 1&4 (+), 2&3 (-)
+            # This gives rate damping to the flaps actuator, preventing overshoot.
             #
             if self.yaw_loop_enabled:
                 psi_err = wrap_angle((psi_cmd - psi_d) * DEG2RAD) * RAD2DEG
 
-                # Outer loop: heading error → rate command
+                # Outer loop: heading error → rate command (deg/s)
                 r_cmd_d = self.pid_yaw_att.update(psi_err, t)
 
-                # Outer loop also drives differential flaps (vectored tilt)
-                # Scale by flaps_gain (separate from attitude PID gains)
-                yaw_diff_flaps = clamp(psi_err * self.yaw_flaps_gain * 0.001,
-                                       -0.03, 0.03)
-
-                # Inner loop: rate error → differential throttle (torque reaction)
+                # Inner loop: rate error → differential flaps
                 r_err = r_cmd_d - r_d
-                yaw_thr_diff = self.pid_yaw_rate.update(r_err, t) * self.yaw_throttle_gain
+                yaw_diff_flaps = self.pid_yaw_rate.update(r_err, t) * self.yaw_flaps_gain
+
+                # Differential throttle: disabled (MAVRIK doesn't simulate Cq)
+                # Set throttle_gain=0 in gains file, or small value for future use
+                yaw_thr_diff = 0.0
             else:
                 r_cmd_d = 0.0
                 yaw_diff_flaps = 0.0

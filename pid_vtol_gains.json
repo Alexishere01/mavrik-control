@@ -82,22 +82,22 @@
     },
     "yaw_attitude": {
         "enabled": true,
-        "tuning_note": "DUAL-LOOP: Outer loop outputs RATE COMMAND (deg/s), not flaps directly. kp=0.5 means 10deg heading error → 5 deg/s rate command. Conservative to avoid oscillation.",
+        "tuning_note": "v8 FINAL: Cascade-through-flaps architecture. kp=0.5 gives 5 deg/s rate cmd per 10deg heading error. ki=0.01 for steady-state tracking. Tested v1-v10, this is the sweet spot.",
         "kp": 0.5,
-        "ki": 0.02,
-        "kd": 0.05,
-        "output_min": -15.0,
-        "output_max": 15.0,
-        "integrator_max": 5.0
+        "ki": 0.01,
+        "kd": 0.08,
+        "output_min": -10.0,
+        "output_max": 10.0,
+        "integrator_max": 3.0
     },
     "yaw_rate": {
-        "tuning_note": "Inner loop: rate error (deg/s) → differential throttle. At hover ~0.4 throttle per motor, Izz=21.2 kg⋅m² (=15.6 slug⋅ft²). With 4 motors at arm=3.88ft and T0=99.24lbf, max yaw torque from full diff ≈ 770 ft⋅lbf → α ≈ 49 deg/s². So kp=0.005 gives 0.005 throttle per deg/s rate error → ~2.5 deg/s² authority per deg/s error. Conservative.",
-        "kp": 0.005,
-        "ki": 0.001,
-        "kd": 0.0005,
-        "output_min": -0.08,
-        "output_max": 0.08,
-        "integrator_max": 0.03
+        "tuning_note": "v8 FINAL: Output drives FLAPS DIFFERENTIAL (not throttle). kp=0.01, output_max=0.12. Gives 10.8deg max tilt asymmetry. Tested v1-v10: lower = too sluggish, higher = pitch disturbance from noise.",
+        "kp": 0.01,
+        "ki": 0.0,
+        "kd": 0.004,
+        "output_min": -0.12,
+        "output_max": 0.12,
+        "integrator_max": 0.01
     },
     "yaw_mixer": {
         "throttle_gain": 1.0,
