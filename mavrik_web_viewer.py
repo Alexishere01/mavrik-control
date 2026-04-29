@@ -29,10 +29,12 @@ def udp_listener():
     sock.bind((UDP_IP, UDP_PORT))
     print(f"[UDP] Listening for MAVRIK state on port {UDP_PORT}...")
     
+    pkt_count = 0
     while True:
         try:
             data, _ = sock.recvfrom(1024)
             if len(data) >= MAVRIK_SIZE:
+                pkt_count += 1
                 unpacked = struct.unpack(MAVRIK_FMT, data[:MAVRIK_SIZE])
                 # Note: MAVRIK state outputs zf (down), we negate it in the browser
                 global latest_state
@@ -42,6 +44,8 @@ def udp_listener():
                     "x": unpacked[7], "y": unpacked[8], "z": unpacked[9],
                     "e0": unpacked[10], "ex": unpacked[11], "ey": unpacked[12], "ez": unpacked[13]
                 }
+                if pkt_count % 35 == 0:
+                    print(f"[UDP] Receiving Telemetry... t={latest_state['t']:.2f}")
         except Exception as e:
             print(f"[UDP Error] {e}")
 
