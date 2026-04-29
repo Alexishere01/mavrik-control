@@ -282,6 +282,11 @@ HTML_CONTENT = """<!DOCTYPE html>
             const rollRad = Math.atan2(2 * (e0 * ex + ey * ez), e0 * e0 - ex * ex - ey * ey + ez * ez);
             const yawRad = Math.atan2(2 * (e0 * ez + ex * ey), e0 * e0 + ex * ex - ey * ey - ez * ez);
             
+            const pitchDeg = pitchRad * (180 / Math.PI);
+            const rollDeg = rollRad * (180 / Math.PI);
+            let yawDeg = yawRad * (180 / Math.PI);
+            if (yawDeg < 0) yawDeg += 360;
+            
             // Point arrow along yaw
             arrow.rotation.y = yawRad;
 
