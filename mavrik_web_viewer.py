@@ -57,6 +57,16 @@ HTML_CONTENT = """<!DOCTYPE html>
         button { background: rgba(50,50,50,0.8); color: white; border: 1px solid #777; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
         button:hover { background: #555; }
         #instructions { position: absolute; bottom: 5px; left: 10px; color: #777; font-size: 10px; }
+        
+        /* HUD Elements */
+        #minimap-container { position: absolute; top: 10px; right: 10px; width: 250px; height: 250px; border: 2px solid #555; border-radius: 5px; background: transparent; z-index: 10; pointer-events: none; }
+        #horizon-container { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 200px; height: 200px; border-radius: 50%; border: 4px solid #333; overflow: hidden; background: #87CEEB; z-index: 10; box-shadow: 0 0 10px black; }
+        #horizon-pitch { position: absolute; width: 100%; height: 200%; top: -50%; left: 0; transform-origin: center; transition: transform 0.05s linear; }
+        #horizon-sky { position: absolute; top: 0; left: 0; width: 100%; height: 50%; background: #2C75FF; }
+        #horizon-ground { position: absolute; bottom: 0; left: 0; width: 100%; height: 50%; background: #654321; border-top: 2px solid white; }
+        #horizon-crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100px; height: 2px; background: yellow; z-index: 11; }
+        #horizon-crosshair::before { content: ''; position: absolute; top: 0; left: 48px; width: 4px; height: 10px; background: yellow; }
+        #attitude-readout { position: absolute; bottom: 230px; left: 50%; transform: translateX(-50%); color: #fff; font-family: monospace; font-size: 14px; text-align: center; background: rgba(0,0,0,0.6); padding: 5px 10px; border-radius: 5px; z-index: 10; white-space: nowrap; }
     </style>
 </head>
 <body>
@@ -77,6 +87,17 @@ HTML_CONTENT = """<!DOCTYPE html>
         </div>
     </div>
     <div id="instructions">Or use Left Click: Rotate | 2-Finger Click: Pan | 2-Finger Scroll: Zoom</div>
+    
+    <div id="minimap-container"></div>
+    <div id="horizon-container">
+        <div id="horizon-pitch">
+            <div id="horizon-sky"></div>
+            <div id="horizon-ground"></div>
+        </div>
+        <div id="horizon-crosshair"></div>
+    </div>
+    <div id="attitude-readout">PITCH: 0.0&deg; | ROLL: 0.0&deg; | HDG: 0.0&deg;</div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script>
@@ -86,9 +107,16 @@ HTML_CONTENT = """<!DOCTYPE html>
         scene.fog = new THREE.Fog(0x222222, 50, 300);
 
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        
+        // Orthographic Minimap Camera
+        const mapCamera = new THREE.OrthographicCamera(-50, 50, 50, -50, 1, 1000);
+        mapCamera.position.set(0, 200, 0);
+        mapCamera.lookAt(0, 0, 0);
+
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
+        renderer.autoClear = false; // Required for rendering multiple viewports
         document.body.appendChild(renderer.domElement);
 
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -185,8 +213,24 @@ HTML_CONTENT = """<!DOCTYPE html>
                 controls.target.lerp(drone.position, 0.1);
             }
 
+            // Calculate Euler angles for HUD directly from MAVRIK quaternion
+            const e0 = state.e0, ex = state.ex, ey = state.ey, ez = state.ez;
+            const pitchRad = Math.asin(2 * (e0 * ey - ez * ex));
+            const rollRad = Math.atan2(2 * (e0 * ex + ey * ez), e0 * e0 - ex * ex - ey * ey + ez * ez);
+            const yawRad = Math.atan2(2 * (e0 * ez + ex * ey), e0 * e0 + ex * ex - ey * ey - ez * ez);
+            
+            const pitchDeg = pitchRad * (180 / Math.PI);
+            const rollDeg = rollRad * (180 / Math.PI);
+            let yawDeg = yawRad * (180 / Math.PI);
+            if (yawDeg < 0) yawDeg += 360;
+
+            // Update Artificial Horizon (translate 3px per degree of pitch)
+            document.getElementById('horizon-pitch').style.transform = `translateY(${pitchDeg * 3}px) rotate(${-rollDeg}deg)`;
+            document.getElementById('attitude-readout').innerHTML = `PITCH: ${pitchDeg.toFixed(1)}&deg; | ROLL: ${rollDeg.toFixed(1)}&deg; | HDG: ${yawDeg.toFixed(1)}&deg;`;
+
             // Update HUD
             hud.innerHTML = `
+                <b>TELEMETRY</b><br>
                 TIME:  ${state.t.toFixed(2)} s<br>
                 ALT:   ${(-state.z).toFixed(1)} ft<br>
                 VEL N: ${state.u.toFixed(1)} ft/s<br>
@@ -198,7 +242,25 @@ HTML_CONTENT = """<!DOCTYPE html>
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
+            
+            // 1. Render Main Fullscreen Camera
+            renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+            renderer.setScissor(0, 0, window.innerWidth, window.innerHeight);
+            renderer.setScissorTest(true);
+            renderer.clear();
             renderer.render(scene, camera);
+
+            // 2. Render Minimap Camera
+            mapCamera.position.x = drone.position.x;
+            mapCamera.position.z = drone.position.z;
+            
+            const minimap = document.getElementById('minimap-container');
+            const rect = minimap.getBoundingClientRect();
+            // WebGL coordinates are bottom-up, so Y is innerHeight - rect.bottom
+            renderer.setViewport(rect.left, window.innerHeight - rect.bottom, rect.width, rect.height);
+            renderer.setScissor(rect.left, window.innerHeight - rect.bottom, rect.width, rect.height);
+            renderer.setScissorTest(true);
+            renderer.render(scene, mapCamera);
         }
         animate();
 
