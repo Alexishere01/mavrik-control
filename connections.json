@@ -15,6 +15,14 @@
         "port_ID": 5007
     },
 
+    "qgc_bridge": {
+        "type": "send",
+        "channel_type": "udp",
+        "refresh_rate": 50,
+        "data_type": "state",
+        "port_ID": 5008
+    },
+
     "ardupilot_bridge": {
         "type": "send",
         "channel_type": "udp",
