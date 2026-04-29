@@ -4,7 +4,7 @@ import struct
 import json
 import time
 import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 # MAVRIK's Graphics send port from connections.json
 UDP_IP = "0.0.0.0"
@@ -265,7 +265,11 @@ HTML_CONTENT = """<!DOCTYPE html>
             
             // Calculate Euler angles
             const e0 = state.e0, ex = state.ex, ey = state.ey, ez = state.ez;
-            const pitchRad = Math.asin(2 * (e0 * ey - ez * ex));
+            
+            // Clamp asin argument to [-1, 1] to prevent NaN from floating point errors
+            const pitchSin = Math.max(-1, Math.min(1, 2 * (e0 * ey - ez * ex)));
+            const pitchRad = Math.asin(pitchSin);
+            
             const rollRad = Math.atan2(2 * (e0 * ex + ey * ez), e0 * e0 - ex * ex - ey * ey + ez * ez);
             const yawRad = Math.atan2(2 * (e0 * ez + ex * ey), e0 * e0 + ex * ex - ey * ey - ez * ez);
             
@@ -389,7 +393,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
 def run_server():
-    server = HTTPServer(("0.0.0.0", HTTP_PORT), RequestHandler)
+    server = ThreadingHTTPServer(("0.0.0.0", HTTP_PORT), RequestHandler)
     print(f"[HTTP] Web Viewer running at http://localhost:{HTTP_PORT}")
     server.serve_forever()
 
