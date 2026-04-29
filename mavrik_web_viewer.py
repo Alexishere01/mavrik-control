@@ -4,6 +4,7 @@ import struct
 import json
 import time
 import threading
+import math
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 # MAVRIK's Graphics send port from connections.json
@@ -38,11 +39,15 @@ def udp_listener():
                 unpacked = struct.unpack(MAVRIK_FMT, data[:MAVRIK_SIZE])
                 # Note: MAVRIK state outputs zf (down), we negate it in the browser
                 global latest_state
+                
+                def clean(f):
+                    return 0.0 if math.isnan(f) or math.isinf(f) else f
+                    
                 latest_state = {
-                    "t": unpacked[0], "u": unpacked[1], "v": unpacked[2], "w": unpacked[3],
-                    "p": unpacked[4], "q": unpacked[5], "r": unpacked[6],
-                    "x": unpacked[7], "y": unpacked[8], "z": unpacked[9],
-                    "e0": unpacked[10], "ex": unpacked[11], "ey": unpacked[12], "ez": unpacked[13]
+                    "t": clean(unpacked[0]), "u": clean(unpacked[1]), "v": clean(unpacked[2]), "w": clean(unpacked[3]),
+                    "p": clean(unpacked[4]), "q": clean(unpacked[5]), "r": clean(unpacked[6]),
+                    "x": clean(unpacked[7]), "y": clean(unpacked[8]), "z": clean(unpacked[9]),
+                    "e0": clean(unpacked[10]), "ex": clean(unpacked[11]), "ey": clean(unpacked[12]), "ez": clean(unpacked[13])
                 }
                 if pkt_count % 35 == 0:
                     print(f"[UDP] Receiving Telemetry... t={latest_state['t']:.2f}")
