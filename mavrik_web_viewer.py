@@ -62,7 +62,6 @@ HTML_CONTENT = """<!DOCTYPE html>
         body { margin: 0; overflow: hidden; background-color: #1a1a1a; font-family: sans-serif;}
         #hud { position: absolute; top: 10px; left: 10px; color: #0f0; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 5px; font-family: monospace;}
         #controls-ui { position: absolute; bottom: 30px; left: 10px; display: flex; flex-direction: column; gap: 5px; }
-        .btn-row { display: flex; gap: 5px; justify-content: center; }
         button { background: rgba(50,50,50,0.8); color: white; border: 1px solid #777; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
         button:hover { background: #555; }
         #instructions { position: absolute; bottom: 170px; left: 10px; color: #777; font-size: 10px; z-index: 10; background: rgba(0,0,0,0.5); padding: 2px 5px; border-radius: 3px; }
@@ -98,26 +97,12 @@ HTML_CONTENT = """<!DOCTYPE html>
         #graph-legend { position: absolute; top: 5px; right: 10px; font-size: 10px; font-family: monospace; }
         .legend-pitch { color: #ff4444; }
         .legend-roll { color: #4444ff; }
+        .legend-yaw { color: #00ff00; }
     </style>
 </head>
 <body>
     <div id="hud">Waiting for MAVRIK telemetry...</div>
-    <div id="controls-ui">
-        <div class="btn-row">
-            <button onclick="pan(0, -10)">▲ Pan Up</button>
-        </div>
-        <div class="btn-row">
-            <button onclick="pan(-10, 0)">◀ Pan L</button>
-            <button onclick="zoom(-5)">+ Zoom In</button>
-            <button onclick="pan(10, 0)">Pan R ▶</button>
-        </div>
-        <div class="btn-row">
-            <button onclick="pan(0, 10)">▼ Pan Down</button>
-            <button onclick="zoom(5)">- Zoom Out</button>
-            <button onclick="resetCam()">Chase Cam</button>
-        </div>
-    </div>
-    <div id="instructions">Or use Left Click: Rotate | 2-Finger Click: Pan | 2-Finger Scroll: Zoom</div>
+    <div id="instructions">Left Click: Rotate | 2-Finger Scroll: Zoom</div>
     
     <div id="minimap-container"></div>
     <div id="horizon-container">
@@ -143,7 +128,7 @@ HTML_CONTENT = """<!DOCTYPE html>
     
     <div id="graph-container">
         <div id="graph-title">ATTITUDE DYNAMICS</div>
-        <div id="graph-legend"><span class="legend-pitch">PITCH</span> | <span class="legend-roll">ROLL</span></div>
+        <div id="graph-legend"><span class="legend-pitch">PITCH</span> | <span class="legend-roll">ROLL</span> | <span class="legend-yaw">YAW</span></div>
         <canvas id="graph-canvas" width="300" height="150"></canvas>
     </div>
 
@@ -304,6 +289,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         const maxGraphPoints = 150;
         const pitchHistory = [];
         const rollHistory = [];
+        const yawHistory = [];
 
         // Server-Sent Events listener
         const source = new EventSource("/stream");
@@ -342,6 +328,8 @@ HTML_CONTENT = """<!DOCTYPE html>
             
             // Point arrow along yaw
             arrow.rotation.y = yawRad;
+            // Rotate Minimap Camera (Heading Up)
+            mapCamera.rotation.z = -yawRad;
             
             // Update Trail
             if (trailPoints.length === 0 || trailPoints[trailPoints.length - 1].distanceTo(drone.position) > 0.5) {
@@ -355,8 +343,10 @@ HTML_CONTENT = """<!DOCTYPE html>
             // Update Graph Data
             pitchHistory.push(pitchDeg);
             rollHistory.push(rollDeg);
+            yawHistory.push(yawDeg > 180 ? yawDeg - 360 : yawDeg); // Normalize Yaw to +/- 180 for graph
             if(pitchHistory.length > maxGraphPoints) pitchHistory.shift();
             if(rollHistory.length > maxGraphPoints) rollHistory.shift();
+            if(yawHistory.length > maxGraphPoints) yawHistory.shift();
 
             // Camera Tracking
             if (isChaseMode) {
@@ -431,6 +421,7 @@ HTML_CONTENT = """<!DOCTYPE html>
             };
             drawLine(pitchHistory, '#ff4444');
             drawLine(rollHistory, '#4444ff');
+            drawLine(yawHistory, '#00ff00');
             
             // 1. Render Main Fullscreen Camera
             renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
