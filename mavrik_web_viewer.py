@@ -52,12 +52,31 @@ HTML_CONTENT = """<!DOCTYPE html>
     <style>
         body { margin: 0; overflow: hidden; background-color: #1a1a1a; font-family: sans-serif;}
         #hud { position: absolute; top: 10px; left: 10px; color: #0f0; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 5px; font-family: monospace;}
-        #instructions { position: absolute; bottom: 10px; left: 10px; color: #aaa; font-size: 12px; }
+        #controls-ui { position: absolute; bottom: 30px; left: 10px; display: flex; flex-direction: column; gap: 5px; }
+        .btn-row { display: flex; gap: 5px; justify-content: center; }
+        button { background: rgba(50,50,50,0.8); color: white; border: 1px solid #777; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #555; }
+        #instructions { position: absolute; bottom: 5px; left: 10px; color: #777; font-size: 10px; }
     </style>
 </head>
 <body>
     <div id="hud">Waiting for MAVRIK telemetry...</div>
-    <div id="instructions">Left Click: Rotate | Right Click: Pan | Scroll: Zoom</div>
+    <div id="controls-ui">
+        <div class="btn-row">
+            <button onclick="pan(0, -10)">▲ Pan Up</button>
+        </div>
+        <div class="btn-row">
+            <button onclick="pan(-10, 0)">◀ Pan L</button>
+            <button onclick="zoom(-5)">+ Zoom In</button>
+            <button onclick="pan(10, 0)">Pan R ▶</button>
+        </div>
+        <div class="btn-row">
+            <button onclick="pan(0, 10)">▼ Pan Down</button>
+            <button onclick="zoom(5)">- Zoom Out</button>
+            <button onclick="resetCam()">Reset Cam</button>
+        </div>
+    </div>
+    <div id="instructions">Or use Left Click: Rotate | 2-Finger Click: Pan | 2-Finger Scroll: Zoom</div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script>
@@ -182,6 +201,26 @@ HTML_CONTENT = """<!DOCTYPE html>
             renderer.render(scene, camera);
         }
         animate();
+
+        // UI Button Functions
+        function zoom(amount) {
+            const dir = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
+            camera.position.addScaledVector(dir, amount);
+        }
+        function pan(dx, dy) {
+            // Get camera right and up vectors to pan along the screen plane
+            const right = new THREE.Vector3();
+            const up = new THREE.Vector3();
+            camera.matrixWorld.extractBasis(right, up, new THREE.Vector3());
+            
+            controls.target.addScaledVector(right, dx);
+            controls.target.addScaledVector(up, dy);
+            camera.position.addScaledVector(right, dx);
+            camera.position.addScaledVector(up, dy);
+        }
+        function resetCam() {
+            initialSetupDone = false; // This will trigger the auto-lock on the next telemetry packet
+        }
     </script>
 </body>
 </html>
