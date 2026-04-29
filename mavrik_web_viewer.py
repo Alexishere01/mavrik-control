@@ -83,6 +83,13 @@ HTML_CONTENT = """<!DOCTYPE html>
         .alt-mark { position: absolute; right: 0; width: 100%; border-top: 2px solid #aaa; font-size: 12px; line-height: 12px; padding-right: 5px; box-sizing: border-box; }
         #alt-pointer { position: absolute; top: 50%; right: 0; transform: translateY(-50%); width: 0; height: 0; border-top: 10px solid transparent; border-bottom: 10px solid transparent; border-right: 15px solid red; z-index: 11; }
         #alt-readout { position: absolute; top: 50%; right: 15px; transform: translateY(-50%); background: red; color: white; padding: 2px 5px; font-weight: bold; border-radius: 3px; z-index: 12; font-size: 14px; }
+
+        /* Speed Tape */
+        #speed-tape-container { position: absolute; top: 10px; left: 280px; width: 60px; height: 250px; background: rgba(0,0,0,0.6); border: 2px solid #555; overflow: hidden; z-index: 10; color: white; font-family: monospace; text-align: left; border-radius: 5px; }
+        #speed-tape { position: absolute; width: 100%; bottom: 50%; transition: transform 0.05s linear; }
+        .speed-mark { position: absolute; left: 0; width: 100%; border-top: 2px solid #aaa; font-size: 12px; line-height: 12px; padding-left: 5px; box-sizing: border-box; }
+        #speed-pointer { position: absolute; top: 50%; left: 0; transform: translateY(-50%); width: 0; height: 0; border-top: 10px solid transparent; border-bottom: 10px solid transparent; border-left: 15px solid #00ff00; z-index: 11; }
+        #speed-readout { position: absolute; top: 50%; left: 15px; transform: translateY(-50%); background: #00ff00; color: black; padding: 2px 5px; font-weight: bold; border-radius: 3px; z-index: 12; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -118,6 +125,12 @@ HTML_CONTENT = """<!DOCTYPE html>
         <div id="alt-tape"></div>
         <div id="alt-pointer"></div>
         <div id="alt-readout">0</div>
+    </div>
+    
+    <div id="speed-tape-container">
+        <div id="speed-tape"></div>
+        <div id="speed-pointer"></div>
+        <div id="speed-readout">0</div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -252,6 +265,16 @@ HTML_CONTENT = """<!DOCTYPE html>
             altTape.appendChild(mark);
         }
 
+        // Setup Speed Tape
+        const speedTape = document.getElementById('speed-tape');
+        for(let i=0; i<=300; i+=5) {
+            const mark = document.createElement('div');
+            mark.className = 'speed-mark';
+            mark.style.bottom = (i * 2) + 'px'; // 2px per ft/s
+            mark.innerText = i % 25 === 0 ? i : '';
+            speedTape.appendChild(mark);
+        }
+
         // Server-Sent Events listener
         const source = new EventSource("/stream");
         source.onmessage = function(event) {
@@ -313,6 +336,11 @@ HTML_CONTENT = """<!DOCTYPE html>
             const altFt = -state.z;
             altTape.style.transform = `translateY(${altFt * 2}px)`;
             document.getElementById('alt-readout').innerText = Math.round(altFt);
+
+            // Update Speed Tape (Ground Speed = sqrt(u^2 + v^2))
+            const speedFps = Math.sqrt(state.u * state.u + state.v * state.v);
+            speedTape.style.transform = `translateY(${speedFps * 2}px)`;
+            document.getElementById('speed-readout').innerText = Math.round(speedFps);
 
             // Update HUD
             hud.innerHTML = `
