@@ -32,7 +32,7 @@
         },
         "initial": {
             "airspeed[ft/s]": 0,
-            "altitude[ft]": 1000.0,
+            "altitude[ft]": 250.0,
             "latitude[deg]": 0,
             "longitude[deg]": 0,
             "heading_angle[deg]": 0.0,

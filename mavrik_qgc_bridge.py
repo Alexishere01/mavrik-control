@@ -188,7 +188,7 @@ class QGCPublisher:
 
     def heartbeat(self):
         self.conn.mav.heartbeat_send(
-            type=mavlink.MAV_TYPE_VTOL_QUADROTOR,
+            type=mavlink.MAV_TYPE_QUADROTOR,
             autopilot=mavlink.MAV_AUTOPILOT_GENERIC,
             base_mode=mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
             custom_mode=0,

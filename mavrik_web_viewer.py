@@ -210,7 +210,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 while True:
                     # Send the latest state as a JSON string
                     data_str = json.dumps(latest_state)
-                    self.wfile.write(f"data: {data_str}\\n\\n".encode("utf-8"))
+                    self.wfile.write(f"data: {data_str}\n\n".encode("utf-8"))
                     self.wfile.flush()
                     time.sleep(1/30.0) # 30Hz update rate
             except Exception:
