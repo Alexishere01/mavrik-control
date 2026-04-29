@@ -65,7 +65,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         .btn-row { display: flex; gap: 5px; justify-content: center; }
         button { background: rgba(50,50,50,0.8); color: white; border: 1px solid #777; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
         button:hover { background: #555; }
-        #instructions { position: absolute; bottom: 5px; left: 10px; color: #777; font-size: 10px; }
+        #instructions { position: absolute; bottom: 170px; left: 10px; color: #777; font-size: 10px; z-index: 10; background: rgba(0,0,0,0.5); padding: 2px 5px; border-radius: 3px; }
         
         /* HUD Elements */
         #minimap-container { position: absolute; top: 10px; right: 10px; width: 250px; height: 250px; border: 2px solid #555; border-radius: 5px; background: transparent; z-index: 10; pointer-events: none; }
@@ -90,6 +90,14 @@ HTML_CONTENT = """<!DOCTYPE html>
         .speed-mark { position: absolute; left: 0; width: 100%; border-top: 2px solid #aaa; font-size: 12px; line-height: 12px; padding-left: 5px; box-sizing: border-box; }
         #speed-pointer { position: absolute; top: 50%; left: 0; transform: translateY(-50%); width: 0; height: 0; border-top: 10px solid transparent; border-bottom: 10px solid transparent; border-left: 15px solid #00ff00; z-index: 11; }
         #speed-readout { position: absolute; top: 50%; left: 15px; transform: translateY(-50%); background: #00ff00; color: black; padding: 2px 5px; font-weight: bold; border-radius: 3px; z-index: 12; font-size: 14px; }
+
+        /* Graph Overlay */
+        #graph-container { position: absolute; bottom: 10px; left: 10px; width: 300px; height: 150px; background: rgba(0,0,0,0.7); border: 2px solid #555; border-radius: 5px; z-index: 10; }
+        #graph-canvas { width: 100%; height: 100%; }
+        #graph-title { position: absolute; top: 5px; left: 10px; color: white; font-size: 10px; font-family: monospace; font-weight: bold; }
+        #graph-legend { position: absolute; top: 5px; right: 10px; font-size: 10px; font-family: monospace; }
+        .legend-pitch { color: #ff4444; }
+        .legend-roll { color: #4444ff; }
     </style>
 </head>
 <body>
@@ -131,6 +139,12 @@ HTML_CONTENT = """<!DOCTYPE html>
         <div id="speed-tape"></div>
         <div id="speed-pointer"></div>
         <div id="speed-readout">0</div>
+    </div>
+    
+    <div id="graph-container">
+        <div id="graph-title">ATTITUDE DYNAMICS</div>
+        <div id="graph-legend"><span class="legend-pitch">PITCH</span> | <span class="legend-roll">ROLL</span></div>
+        <canvas id="graph-canvas" width="300" height="150"></canvas>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -236,6 +250,15 @@ HTML_CONTENT = """<!DOCTYPE html>
         drone.add(backArm);
 
         scene.add(drone);
+        
+        // Flight Wake (Trail)
+        const maxTrailPoints = 1000;
+        const trailPoints = [];
+        const trailGeo = new THREE.BufferGeometry();
+        // Cyan color, transparent so it looks cool
+        const trailMat = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2, transparent: true, opacity: 0.8 });
+        const trailLine = new THREE.Line(trailGeo, trailMat);
+        scene.add(trailLine);
 
         // Initial camera position (behind and slightly above)
         camera.position.set(10, 10, 15);
@@ -275,6 +298,13 @@ HTML_CONTENT = """<!DOCTYPE html>
             speedTape.appendChild(mark);
         }
 
+        // Setup Live Graphing
+        const graphCanvas = document.getElementById('graph-canvas');
+        const graphCtx = graphCanvas.getContext('2d');
+        const maxGraphPoints = 150;
+        const pitchHistory = [];
+        const rollHistory = [];
+
         // Server-Sent Events listener
         const source = new EventSource("/stream");
         source.onmessage = function(event) {
@@ -312,6 +342,21 @@ HTML_CONTENT = """<!DOCTYPE html>
             
             // Point arrow along yaw
             arrow.rotation.y = yawRad;
+            
+            // Update Trail
+            if (trailPoints.length === 0 || trailPoints[trailPoints.length - 1].distanceTo(drone.position) > 0.5) {
+                trailPoints.push(drone.position.clone());
+                if (trailPoints.length > maxTrailPoints) {
+                    trailPoints.shift();
+                }
+                trailGeo.setFromPoints(trailPoints);
+            }
+            
+            // Update Graph Data
+            pitchHistory.push(pitchDeg);
+            rollHistory.push(rollDeg);
+            if(pitchHistory.length > maxGraphPoints) pitchHistory.shift();
+            if(rollHistory.length > maxGraphPoints) rollHistory.shift();
 
             // Camera Tracking
             if (isChaseMode) {
@@ -356,6 +401,36 @@ HTML_CONTENT = """<!DOCTYPE html>
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
+            
+            // Render Graph
+            graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
+            // Draw Center Line (0 degrees)
+            const midY = graphCanvas.height / 2;
+            graphCtx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            graphCtx.lineWidth = 1;
+            graphCtx.beginPath();
+            graphCtx.moveTo(0, midY);
+            graphCtx.lineTo(graphCanvas.width, midY);
+            graphCtx.stroke();
+            
+            // Draw Graph Lines
+            const drawLine = (data, color) => {
+                if (data.length === 0) return;
+                graphCtx.strokeStyle = color;
+                graphCtx.lineWidth = 2;
+                graphCtx.beginPath();
+                const stepX = graphCanvas.width / maxGraphPoints;
+                for(let i=0; i<data.length; i++) {
+                    const x = i * stepX;
+                    // Scale data: 1 degree = 2 pixels
+                    const y = midY - (data[i] * 2);
+                    if(i===0) graphCtx.moveTo(x, y);
+                    else graphCtx.lineTo(x, y);
+                }
+                graphCtx.stroke();
+            };
+            drawLine(pitchHistory, '#ff4444');
+            drawLine(rollHistory, '#4444ff');
             
             // 1. Render Main Fullscreen Camera
             renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
