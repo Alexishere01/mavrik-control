@@ -174,7 +174,7 @@ HTML_CONTENT = """<!DOCTYPE html>
 
         // Procedural Cityscape (World Reference)
         const cityGroup = new THREE.Group();
-        const bldgMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.9 });
+        const bldgMat = new THREE.MeshStandardMaterial({ color: 0x88bbff, roughness: 0.5, metalness: 0.1 });
         for(let i=0; i<300; i++) {
             const w = 10 + Math.random() * 40;
             const h = 20 + Math.random() * 200;
