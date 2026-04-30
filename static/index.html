@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MAVRIK Web Viewer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="flight-mode">
+    <div id="app-container">
+        <!-- TOPBAR -->
+        <div id="topbar">
+            <div id="tb-vehicle">Airframe: <span id="vehicle-filename">Loading...</span></div>
+            <div id="tb-modes">
+                <button onclick="setMode('flight')">Flight</button>
+                <button onclick="setMode('tuning')">Tuning</button>
+                <button onclick="setMode('rc_config')">RC Config</button>
+            </div>
+            <div id="tb-status">
+                <span id="recording-status" style="color:#aaa;">REC: OFF</span> | 
+                <span id="rc-override-status" style="color:#aaa;">RC: OFF</span>
+            </div>
+        </div>
+
+        <!-- MAIN VIEWPORT -->
+        <div id="main-region">
+            <div id="viewport3d"></div>
+            
+            <div id="hud-overlay">
+                <div id="minimap-container"></div>
+                <div id="horizon-container">
+                    <div id="horizon-pitch">
+                        <div id="horizon-sky"></div>
+                        <div id="horizon-ground"></div>
+                    </div>
+                    <div id="horizon-crosshair"></div>
+                </div>
+                <div id="attitude-readout">PITCH: 0.0&deg; | ROLL: 0.0&deg; | HDG: 0.0&deg;</div>
+                
+                <div id="altimeter">
+                    <div id="alt-tape"></div>
+                    <div id="alt-pointer"></div>
+                    <div id="alt-readout">0</div>
+                </div>
+                
+                <div id="speed-tape-container">
+                    <div id="speed-tape"></div>
+                    <div id="speed-pointer"></div>
+                    <div id="speed-readout">0</div>
+                </div>
+                
+                <div id="hud-text">Waiting for MAVRIK telemetry...</div>
+                <div id="instructions">Left Click: Rotate | Scroll: Zoom | 'C': Cycle View</div>
+                
+                <div id="axis-indicator"></div>
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL -->
+        <div id="right-panel">
+            <div id="observability-panel" class="panel-section">
+                <h3>Observability</h3>
+                <div class="obs-item">State (5005): <span id="obs-state">0 Hz (0%)</span></div>
+                <div class="obs-item">Actuators (5010): <span id="obs-act">0 Hz (0%)</span></div>
+                <div class="obs-item">Setpoint (5011): <span id="obs-set">0 Hz (0%)</span></div>
+                <div class="obs-item">WS Latency: <span id="obs-ping">-- ms</span></div>
+                
+                <h4>Stick Echo</h4>
+                <div class="stick-bar-wrap">Roll: <div class="stick-bar"><div id="echo-roll" class="stick-fill"></div></div></div>
+                <div class="stick-bar-wrap">Pitch: <div class="stick-bar"><div id="echo-pitch" class="stick-fill"></div></div></div>
+                <div class="stick-bar-wrap">Yaw: <div class="stick-bar"><div id="echo-yaw" class="stick-fill"></div></div></div>
+                <div class="stick-bar-wrap">Thr: <div class="stick-bar"><div id="echo-thr" class="stick-fill" style="left:0;width:50%;"></div></div></div>
+            </div>
+
+            <div id="rc-config-panel" class="panel-section">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h3 style="margin: 0;">RC Config</h3>
+                    <button onclick="startCalibration()" style="background:#0055ff; border:none; padding: 3px 8px;">Calibrate RC</button>
+                </div>
+                <div id="rc-status" style="color: #ff4444;">No Gamepad Detected</div>
+                <label>Roll CH: <input type="number" id="ax-roll" value="0"> <input type="checkbox" id="inv-roll"> Inv <input type="number" id="sc-roll" value="1.0" step="0.1" title="Scale (multiplier)"></label><br>
+                <label>Pitch CH: <input type="number" id="ax-pitch" value="1"> <input type="checkbox" id="inv-pitch" checked> Inv <input type="number" id="sc-pitch" value="1.0" step="0.1" title="Scale (multiplier)"></label><br>
+                <label>Thr CH: <input type="number" id="ax-thr" value="2"> <input type="checkbox" id="inv-thr"> Inv <input type="number" id="sc-thr" value="1.0" step="0.1" title="Scale (multiplier)"></label><br>
+                <label>Yaw CH: <input type="number" id="ax-yaw" value="3"> <input type="checkbox" id="inv-yaw"> Inv <input type="number" id="sc-yaw" value="1.0" step="0.1" title="Scale (multiplier)"></label><br>
+                <label style="margin-top:10px;display:block;"><input type="checkbox" id="rc-enable"> Enable RC Override</label>
+                <label style="display:block;"><input type="checkbox" id="ekf-enable"> Show EKF Ghost</label>
+            </div>
+
+            <div id="recordings-panel" class="panel-section">
+                <h3>Recordings</h3>
+                <button onclick="loadRecordings()">Refresh</button>
+                <select id="recording-select" style="width:100%; margin:5px 0;"></select>
+                <button onclick="playRecording()">Play</button>
+                <button onclick="stopRecording()">Live</button>
+                <div id="playback-time" style="margin-top: 5px; font-family: monospace; color: #00ff00;">LIVE</div>
+            </div>
+        </div>
+
+        <!-- BOTTOM PANEL -->
+        <div id="bottom-panel">
+            <div class="graph-box">
+                <div class="graph-title">ROLL (Cmd vs Actual)</div>
+                <canvas id="graph-roll"></canvas>
+            </div>
+            <div class="graph-box">
+                <div class="graph-title">PITCH (Cmd vs Actual)</div>
+                <canvas id="graph-pitch"></canvas>
+            </div>
+            <div class="graph-box">
+                <div class="graph-title">YAW (Cmd vs Actual)</div>
+                <canvas id="graph-yaw"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- CALIBRATION WIZARD MODAL -->
+    <div id="cal-wizard-overlay" style="display:none;">
+        <div id="cal-wizard-modal">
+            <h2 id="cal-title">RC Calibration</h2>
+            <p id="cal-instructions">Leave sticks centered. Do not touch.</p>
+            <div id="cal-progress-bar-wrap"><div id="cal-progress-bar"></div></div>
+            <div id="cal-actions">
+                <button onclick="cancelCalibration()">Cancel</button>
+                <button id="cal-next-btn" onclick="nextCalibrationStep()" style="display:none;">Next</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

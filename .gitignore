@@ -13,3 +13,11 @@ archive/
 
 # Handoff docs (internal context, not code)
 Handoff/
+
+# Knowledge base
+knowledge_base/
+
+# Wine files
+.wine/
+
+# Git

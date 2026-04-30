@@ -335,6 +335,22 @@ class VTOLController:
         self.state_sock.setblocking(False)
         self.ctrl_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.ctrl_dest = (ports["control_ip"], ports["control_send"])
+        
+        self.setpoint_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.setpoint_dest = (ports["control_ip"], 5011)
+
+        self.rc_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.rc_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.rc_sock.bind(("0.0.0.0", 5012))
+        self.rc_sock.setblocking(False)
+        self.last_rc_t = -10.0
+        self.prev_rc_active = False
+        self.rc_axes = (0.0, 0.0, 0.0, 0.0)
+        self.rc_alt_cmd = 0.0
+        self.rc_heading_cmd = 0.0
+
+        self.status_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.status_dest = ("127.0.0.1", 5013)
 
         # Logging
         lc = c["logging"]
@@ -377,6 +393,13 @@ class VTOLController:
     def send_controls(self, ail, ele, rud, thrFR, thrFL, thrAR, thrAL, flapsR, flapsL):
         pkt = struct.pack('<9f', ail, ele, rud, thrFR, thrFL, thrAR, thrAL, flapsR, flapsL)
         self.ctrl_sock.sendto(pkt, self.ctrl_dest)
+
+    def send_status(self, type_str, message, level="info"):
+        payload = json.dumps({"type": "status", "category": type_str, "message": message, "level": level})
+        try:
+            self.status_sock.sendto(payload.encode('utf-8'), self.status_dest)
+        except Exception:
+            pass
 
     def rate_limit(self, new_val, last_val, max_step):
         delta = clamp(new_val - last_val, -max_step, max_step)
@@ -444,34 +467,87 @@ class VTOLController:
                 self.initial_theta = theta_d
                 self.initial_alt   = alt
                 self.initial_u     = u
+                self.rc_alt_cmd    = alt
+                self.rc_heading_cmd = psi_d
                 print(f"  Initial: phi={phi_d:.1f}° theta={theta_d:.1f}° "
                       f"psi={psi_d:.1f}° alt={alt:.0f} ft  u={u:.1f} fps")
                 print(f"  Holding initial state for {self.warmup_seconds:.1f}s, "
                       f"then blending into schedule.")
 
+            try:
+                while True:
+                    rc_data, _ = self.rc_sock.recvfrom(1024)
+                    if len(rc_data) >= 16:
+                        self.rc_axes = struct.unpack('<4f', rc_data[:16])
+                        self.last_rc_t = t
+            except BlockingIOError:
+                pass
+
             # Ramp-in factor: 0 at start, 1 after ramp_seconds
             t_since_start = t - self.t_start
             ramp = clamp(t_since_start / max(self.ramp_seconds, 1e-6), 0.0, 1.0)
 
+            rc_active = (t - self.last_rc_t) < 0.5
+            
+            # Detect RC transitions
+            if rc_active and not self.prev_rc_active:
+                print(f"[pid_vtol] RC override: ACTIVE")
+                self.send_status("rc_override", "ACTIVE", "info")
+            elif not rc_active and self.prev_rc_active:
+                print(f"[pid_vtol] RC override: DROPPED — falling back to AUTO")
+                self.send_status("rc_override", "DROPPED - falling back to AUTO", "error")
+            self.prev_rc_active = rc_active
+            
             sp = self.get_setpoint(t)
-            phi_cmd_sched   = sp["phi_deg"]
-            theta_cmd_sched = sp["theta_deg"]
-            alt_cmd_sched   = sp["alt_ft"]
-            u_cmd_sched     = sp.get("u_ft_s", 0.0)
+
+            if rc_active:
+                rc_roll, rc_pitch, rc_yaw, rc_thr = self.rc_axes
+                
+                # Apply deadbands
+                db = 0.05
+                rc_yaw = 0.0 if abs(rc_yaw) < db else rc_yaw
+                rc_thr = 0.0 if abs(rc_thr) < db else rc_thr
+                rc_roll = 0.0 if abs(rc_roll) < db else rc_roll
+                rc_pitch = 0.0 if abs(rc_pitch) < db else rc_pitch
+                
+                # Yaw stick -> integrate heading (45 deg/s)
+                self.rc_heading_cmd += rc_yaw * 45.0 * dt_loop
+                
+                # Throttle stick -> integrate altitude (15 ft/s)
+                # Usually stick down is positive Y on gamepad (so push up -> negative thr)
+                # So if rc_thr is negative (stick UP), we want to climb (positive alt rate).
+                self.rc_alt_cmd += -rc_thr * 15.0 * dt_loop
+                
+                phi_cmd_sched = rc_roll * 30.0    # Max 30 deg roll
+                theta_cmd_sched = rc_pitch * 30.0 # Max 30 deg pitch
+                alt_cmd_sched = self.rc_alt_cmd
+                self.heading_hold = self.rc_heading_cmd
+                u_cmd_sched = 0.0
+                
+                # Disable warmup blend in RC mode
+                blend = 1.0
+            else:
+                phi_cmd_sched   = sp["phi_deg"]
+                theta_cmd_sched = sp["theta_deg"]
+                alt_cmd_sched   = sp["alt_ft"]
+                u_cmd_sched     = sp.get("u_ft_s", 0.0)
+                
+                # Sync RC internal states so bump-less transfer
+                self.rc_alt_cmd = alt_cmd_sched
+                self.rc_heading_cmd = self.heading_hold
+
+                # Warmup blend: hold initial state, then ease into the scheduled setpoint.
+                if self.warmup_seconds > 0:
+                    raw = (t_since_start) / self.warmup_seconds
+                    blend = 0.5 * (1 - math.cos(math.pi * clamp(raw, 0, 1)))
+                else:
+                    blend = 1.0
+
             # When yaw loop is enabled, read heading from schedule; otherwise hold initial
-            if self.yaw_loop_enabled and "psi_deg" in sp:
+            if self.yaw_loop_enabled and not rc_active and "psi_deg" in sp:
                 psi_cmd = sp["psi_deg"] + self.heading_hold  # offset from initial heading
             else:
                 psi_cmd = self.heading_hold
-
-            # Warmup blend: hold initial state, then ease into the scheduled setpoint.
-            # blend = 0 means use initial state, blend = 1 means use schedule.
-            if self.warmup_seconds > 0:
-                raw = (t_since_start) / self.warmup_seconds
-                # Cosine ease for smooth start AND smooth end of blend
-                blend = 0.5 * (1 - math.cos(math.pi * clamp(raw, 0, 1)))
-            else:
-                blend = 1.0
 
             phi_cmd_base   = (1-blend) * self.initial_phi   + blend * phi_cmd_sched
             theta_cmd_base = (1-blend) * self.initial_theta + blend * theta_cmd_sched
@@ -591,6 +667,13 @@ class VTOLController:
                                thrFR_cmd, thrFL_cmd, thrAR_cmd, thrAL_cmd,
                                flapsR_cmd, flapsL_cmd)
 
+            # Send Setpoint
+            sp_pkt = struct.pack('<7f', t, xf, yf, -alt_cmd, phi_cmd_base, theta_cmd, psi_cmd)
+            try:
+                self.setpoint_sock.sendto(sp_pkt, self.setpoint_dest)
+            except Exception:
+                pass
+
             # === LOG ===
             if t - self.last_log >= self.log_dt:
                 self.log.write(
@@ -611,7 +694,9 @@ class VTOLController:
 
             # === CONSOLE ===
             if t - last_print >= 0.5:
-                if ramp < 1:
+                if rc_active:
+                    status = "RC "
+                elif ramp < 1:
                     status = "RMP"
                 elif blend < 1:
                     status = f"W{blend:.1f}"

@@ -1,0 +1,157 @@
+body { margin: 0; overflow: hidden; background-color: #1a1a1a; font-family: sans-serif; color: #eee; }
+
+#app-container {
+    display: grid;
+    height: 100vh;
+    width: 100vw;
+    grid-template-rows: 40px 1fr 150px;
+    grid-template-columns: 1fr 300px;
+    grid-template-areas:
+        "topbar topbar"
+        "main right"
+        "bottom bottom";
+    transition: all 0.3s ease;
+}
+
+/* MODES */
+body.flight-mode #app-container {
+    grid-template-rows: 40px 1fr 0px;
+    grid-template-columns: 1fr 0px;
+}
+body.tuning-mode #app-container {
+    grid-template-rows: 40px 1fr 150px;
+    grid-template-columns: 1fr 300px;
+}
+body.rc_config-mode #app-container {
+    grid-template-rows: 40px 1fr 0px;
+    grid-template-columns: 1fr 300px;
+}
+/* Hide HUD overlay in RC config mode */
+body.rc_config-mode #hud-overlay {
+    display: none;
+}
+/* Hide overflow when panels are collapsed */
+#right-panel, #bottom-panel { overflow: hidden; }
+
+/* TOPBAR */
+#topbar {
+    grid-area: topbar;
+    background: #222;
+    border-bottom: 1px solid #444;
+    display: flex;
+    align-items: center;
+    padding: 0 15px;
+    justify-content: space-between;
+}
+#tb-modes button { margin-right: 5px; }
+
+/* MAIN REGION */
+#main-region {
+    grid-area: main;
+    position: relative;
+    overflow: hidden;
+}
+#viewport3d {
+    width: 100%; height: 100%;
+}
+#hud-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+}
+#hud-text { position: absolute; top: 10px; left: 10px; color: #0f0; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 5px; font-family: monospace; }
+#instructions { position: absolute; bottom: 10px; left: 10px; color: #777; font-size: 10px; background: rgba(0,0,0,0.5); padding: 2px 5px; border-radius: 3px; }
+
+/* RIGHT PANEL */
+#right-panel {
+    grid-area: right;
+    background: #1e1e1e;
+    border-left: 1px solid #444;
+    display: flex;
+    flex-direction: column;
+}
+.panel-section {
+    padding: 10px;
+    border-bottom: 1px solid #333;
+}
+.panel-section h3 { margin: 0 0 10px 0; font-size: 14px; color: #aaa; text-transform: uppercase;}
+.obs-item { font-family: monospace; font-size: 12px; margin-bottom: 4px; }
+.stick-bar-wrap { font-family: monospace; font-size: 12px; display: flex; align-items: center; margin-top: 4px;}
+.stick-bar-wrap > div.stick-bar { flex: 1; margin-left: 10px; height: 10px; background: #333; position: relative; border-radius: 2px; }
+.stick-fill { position: absolute; height: 100%; background: #00ff00; width: 0; left: 50%; }
+
+/* BOTTOM PANEL */
+#bottom-panel {
+    grid-area: bottom;
+    background: #1e1e1e;
+    border-top: 1px solid #444;
+    display: flex;
+    padding: 10px;
+    gap: 10px;
+}
+.graph-box {
+    flex: 1;
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 4px;
+    position: relative;
+}
+.graph-title { position: absolute; top: 5px; left: 5px; font-family: monospace; font-size: 10px; color: #888; }
+.graph-box canvas { width: 100%; height: 100%; display: block; }
+
+/* REUSED HUD ELEMENTS */
+#minimap-container { position: absolute; top: 10px; right: 10px; width: 200px; height: 200px; border: 2px solid #555; border-radius: 5px; background: transparent; z-index: 10; pointer-events: none; }
+#horizon-container { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 200px; height: 200px; border-radius: 50%; border: 4px solid #333; overflow: hidden; background: #87CEEB; z-index: 10; box-shadow: 0 0 10px black; }
+#horizon-pitch { position: absolute; width: 100%; height: 200%; top: -50%; left: 0; transform-origin: center; transition: transform 0.05s linear; }
+#horizon-sky { position: absolute; top: 0; left: 0; width: 100%; height: 50%; background: #2C75FF; }
+#horizon-ground { position: absolute; bottom: 0; left: 0; width: 100%; height: 50%; background: #654321; border-top: 2px solid white; }
+#horizon-crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100px; height: 2px; background: yellow; z-index: 11; }
+#horizon-crosshair::before { content: ''; position: absolute; top: 0; left: 48px; width: 4px; height: 10px; background: yellow; }
+#attitude-readout { position: absolute; bottom: 230px; left: 50%; transform: translateX(-50%); color: #fff; font-family: monospace; font-size: 14px; text-align: center; background: rgba(0,0,0,0.6); padding: 5px 10px; border-radius: 5px; z-index: 10; white-space: nowrap; }
+
+/* Altimeter Tape */
+#altimeter { position: absolute; top: 10px; right: 230px; width: 50px; height: 200px; background: rgba(0,0,0,0.6); border: 2px solid #555; overflow: hidden; z-index: 10; color: white; font-family: monospace; text-align: right; border-radius: 5px; }
+#alt-tape { position: absolute; width: 100%; bottom: 50%; transition: transform 0.05s linear; }
+.alt-mark { position: absolute; right: 0; width: 100%; border-top: 2px solid #aaa; font-size: 10px; line-height: 10px; padding-right: 5px; box-sizing: border-box; }
+#alt-pointer { position: absolute; top: 50%; right: 0; transform: translateY(-50%); width: 0; height: 0; border-top: 8px solid transparent; border-bottom: 8px solid transparent; border-right: 12px solid red; z-index: 11; }
+#alt-readout { position: absolute; top: 50%; right: 15px; transform: translateY(-50%); background: red; color: white; padding: 2px 4px; font-weight: bold; border-radius: 3px; z-index: 12; font-size: 12px; }
+
+/* Speed Tape */
+#speed-tape-container { position: absolute; top: 10px; left: 10px; width: 50px; height: 200px; background: rgba(0,0,0,0.6); border: 2px solid #555; overflow: hidden; z-index: 10; color: white; font-family: monospace; text-align: left; border-radius: 5px; }
+#speed-tape { position: absolute; width: 100%; bottom: 50%; transition: transform 0.05s linear; }
+.speed-mark { position: absolute; left: 0; width: 100%; border-top: 2px solid #aaa; font-size: 10px; line-height: 10px; padding-left: 5px; box-sizing: border-box; }
+#speed-pointer { position: absolute; top: 50%; left: 0; transform: translateY(-50%); width: 0; height: 0; border-top: 8px solid transparent; border-bottom: 8px solid transparent; border-left: 12px solid #00ff00; z-index: 11; }
+#speed-readout { position: absolute; top: 50%; left: 15px; transform: translateY(-50%); background: #00ff00; color: black; padding: 2px 4px; font-weight: bold; border-radius: 3px; z-index: 12; font-size: 12px; }
+
+/* Generic */
+button { background: rgba(50,50,50,0.8); color: white; border: 1px solid #777; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;}
+button:hover { background: #555; }
+input[type=number] { width: 40px; background: #333; color: white; border: 1px solid #555; border-radius: 3px;}
+
+#axis-indicator {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    width: 100px;
+    height: 100px;
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* Calibration Wizard */
+#cal-wizard-overlay {
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0,0,0,0.8); z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+}
+#cal-wizard-modal {
+    background: #222; border: 1px solid #555; border-radius: 8px;
+    padding: 20px; width: 400px; text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+#cal-title { color: #00ff00; margin-top: 0; }
+#cal-instructions { font-size: 16px; margin-bottom: 20px; font-weight: bold; }
+#cal-progress-bar-wrap { width: 100%; height: 20px; background: #111; border-radius: 10px; overflow: hidden; margin-bottom: 20px; }
+#cal-progress-bar { width: 0%; height: 100%; background: #0055ff; transition: width 0.1s; }
+#cal-actions { display: flex; justify-content: space-between; }
+#cal-actions button { font-size: 16px; padding: 10px 20px; }

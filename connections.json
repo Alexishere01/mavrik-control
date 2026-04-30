@@ -46,5 +46,13 @@
         "data_type": "controls",
         "port_ID": 5006,
         "number_of_values": 9
+    },
+
+    "viewer_actuators": {
+        "type": "send",
+        "channel_type": "udp",
+        "refresh_rate": 50,
+        "data_type": "controls",
+        "port_ID": 5010
     }
 }

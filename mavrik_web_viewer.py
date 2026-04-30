@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-import socket
 import struct
 import json
-import time
-import threading
+import asyncio
 import math
-from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+import os
+import time
+import socket
+from aiohttp import web
+import hashlib
+import glob
+import subprocess
+import datetime
 
 # MAVRIK's Graphics send port from connections.json
 UDP_IP = "0.0.0.0"
@@ -17,501 +22,367 @@ MAVRIK_FMT = "<14f"
 MAVRIK_SIZE = struct.calcsize(MAVRIK_FMT)
 
 # Global state holder
-latest_state = {
-    "t": 0, "u": 0, "v": 0, "w": 0,
-    "p": 0, "q": 0, "r": 0,
-    "x": 0, "y": 0, "z": 0,
-    "e0": 1, "ex": 0, "ey": 0, "ez": 0
+latest_frame = {
+    "type": "frame",
+    "t": 0,
+    "state": {
+        "t": 0, "u": 0, "v": 0, "w": 0,
+        "p": 0, "q": 0, "r": 0,
+        "x": 0, "y": 0, "z": 0,
+        "e0": 1, "ex": 0, "ey": 0, "ez": 0
+    },
+    "actuators": {
+        "aileron": 0, "elevator": 0, "rudder": 0,
+        "thrFR": 0, "thrFL": 0, "thrAR": 0, "thrAL": 0,
+        "flapsRight": 0, "flapsLeft": 0, "flaps": 0
+    },
+    "setpoint": None
 }
 
-def udp_listener():
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind((UDP_IP, UDP_PORT))
-    print(f"[UDP] Listening for MAVRIK state on port {UDP_PORT}...")
-    
-    pkt_count = 0
-    while True:
+# List of client queues
+client_queues = []
+
+# Recording state
+os.makedirs("recordings", exist_ok=True)
+last_rec_t = -1
+current_recording = None
+
+# Stats tracking
+stats = {
+    "state_pkts": 0,
+    "actuator_pkts": 0,
+    "setpoint_pkts": 0
+}
+
+active_vehicle_file = "Team1_VTOL.json"
+active_vehicle_mtime = 0
+
+def find_vehicle_file():
+    global active_vehicle_file, active_vehicle_mtime
+    input_files = glob.glob("input*.json")
+    if input_files:
         try:
-            data, _ = sock.recvfrom(1024)
-            if len(data) >= MAVRIK_SIZE:
-                pkt_count += 1
-                unpacked = struct.unpack(MAVRIK_FMT, data[:MAVRIK_SIZE])
-                # Note: MAVRIK state outputs zf (down), we negate it in the browser
-                global latest_state
-                
-                def clean(f):
-                    return 0.0 if math.isnan(f) or math.isinf(f) else f
-                    
-                latest_state = {
-                    "t": clean(unpacked[0]), "u": clean(unpacked[1]), "v": clean(unpacked[2]), "w": clean(unpacked[3]),
-                    "p": clean(unpacked[4]), "q": clean(unpacked[5]), "r": clean(unpacked[6]),
-                    "x": clean(unpacked[7]), "y": clean(unpacked[8]), "z": clean(unpacked[9]),
-                    "e0": clean(unpacked[10]), "ex": clean(unpacked[11]), "ey": clean(unpacked[12]), "ez": clean(unpacked[13])
-                }
-                if pkt_count % 35 == 0:
-                    print(f"[UDP] Receiving Telemetry... t={latest_state['t']:.2f}")
+            with open(input_files[0], 'r') as f:
+                data = json.load(f)
+                vfile = data.get("vehicle", {}).get("properties", {}).get("filepath")
+                if vfile and os.path.exists(vfile):
+                    active_vehicle_file = vfile
         except Exception as e:
-            print(f"[UDP Error] {e}")
-
-HTML_CONTENT = """<!DOCTYPE html>
-<html>
-<head>
-    <title>MAVRIK Web Viewer</title>
-    <style>
-        body { margin: 0; overflow: hidden; background-color: #1a1a1a; font-family: sans-serif;}
-        #hud { position: absolute; top: 10px; left: 10px; color: #0f0; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 5px; font-family: monospace;}
-        #controls-ui { position: absolute; bottom: 30px; left: 10px; display: flex; flex-direction: column; gap: 5px; }
-        button { background: rgba(50,50,50,0.8); color: white; border: 1px solid #777; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        button:hover { background: #555; }
-        #instructions { position: absolute; bottom: 170px; left: 10px; color: #777; font-size: 10px; z-index: 10; background: rgba(0,0,0,0.5); padding: 2px 5px; border-radius: 3px; }
-        
-        /* HUD Elements */
-        #minimap-container { position: absolute; top: 10px; right: 10px; width: 250px; height: 250px; border: 2px solid #555; border-radius: 5px; background: transparent; z-index: 10; pointer-events: none; }
-        #horizon-container { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); width: 200px; height: 200px; border-radius: 50%; border: 4px solid #333; overflow: hidden; background: #87CEEB; z-index: 10; box-shadow: 0 0 10px black; }
-        #horizon-pitch { position: absolute; width: 100%; height: 200%; top: -50%; left: 0; transform-origin: center; transition: transform 0.05s linear; }
-        #horizon-sky { position: absolute; top: 0; left: 0; width: 100%; height: 50%; background: #2C75FF; }
-        #horizon-ground { position: absolute; bottom: 0; left: 0; width: 100%; height: 50%; background: #654321; border-top: 2px solid white; }
-        #horizon-crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100px; height: 2px; background: yellow; z-index: 11; }
-        #horizon-crosshair::before { content: ''; position: absolute; top: 0; left: 48px; width: 4px; height: 10px; background: yellow; }
-        #attitude-readout { position: absolute; bottom: 230px; left: 50%; transform: translateX(-50%); color: #fff; font-family: monospace; font-size: 14px; text-align: center; background: rgba(0,0,0,0.6); padding: 5px 10px; border-radius: 5px; z-index: 10; white-space: nowrap; }
-
-        /* Altimeter Tape */
-        #altimeter { position: absolute; top: 10px; right: 280px; width: 60px; height: 250px; background: rgba(0,0,0,0.6); border: 2px solid #555; overflow: hidden; z-index: 10; color: white; font-family: monospace; text-align: right; border-radius: 5px; }
-        #alt-tape { position: absolute; width: 100%; bottom: 50%; transition: transform 0.05s linear; }
-        .alt-mark { position: absolute; right: 0; width: 100%; border-top: 2px solid #aaa; font-size: 12px; line-height: 12px; padding-right: 5px; box-sizing: border-box; }
-        #alt-pointer { position: absolute; top: 50%; right: 0; transform: translateY(-50%); width: 0; height: 0; border-top: 10px solid transparent; border-bottom: 10px solid transparent; border-right: 15px solid red; z-index: 11; }
-        #alt-readout { position: absolute; top: 50%; right: 15px; transform: translateY(-50%); background: red; color: white; padding: 2px 5px; font-weight: bold; border-radius: 3px; z-index: 12; font-size: 14px; }
-
-        /* Speed Tape */
-        #speed-tape-container { position: absolute; top: 10px; left: 280px; width: 60px; height: 250px; background: rgba(0,0,0,0.6); border: 2px solid #555; overflow: hidden; z-index: 10; color: white; font-family: monospace; text-align: left; border-radius: 5px; }
-        #speed-tape { position: absolute; width: 100%; bottom: 50%; transition: transform 0.05s linear; }
-        .speed-mark { position: absolute; left: 0; width: 100%; border-top: 2px solid #aaa; font-size: 12px; line-height: 12px; padding-left: 5px; box-sizing: border-box; }
-        #speed-pointer { position: absolute; top: 50%; left: 0; transform: translateY(-50%); width: 0; height: 0; border-top: 10px solid transparent; border-bottom: 10px solid transparent; border-left: 15px solid #00ff00; z-index: 11; }
-        #speed-readout { position: absolute; top: 50%; left: 15px; transform: translateY(-50%); background: #00ff00; color: black; padding: 2px 5px; font-weight: bold; border-radius: 3px; z-index: 12; font-size: 14px; }
-
-        /* Graph Overlay */
-        #graph-container { position: absolute; bottom: 10px; left: 10px; width: 300px; height: 150px; background: rgba(0,0,0,0.7); border: 2px solid #555; border-radius: 5px; z-index: 10; }
-        #graph-canvas { width: 100%; height: 100%; }
-        #graph-title { position: absolute; top: 5px; left: 10px; color: white; font-size: 10px; font-family: monospace; font-weight: bold; }
-        #graph-legend { position: absolute; top: 5px; right: 10px; font-size: 10px; font-family: monospace; }
-        .legend-pitch { color: #ff4444; }
-        .legend-roll { color: #4444ff; }
-        .legend-yaw { color: #00ff00; }
-    </style>
-</head>
-<body>
-    <div id="hud">Waiting for MAVRIK telemetry...</div>
-    <div id="instructions">Left Click: Rotate | 2-Finger Scroll: Zoom</div>
-    
-    <div id="minimap-container"></div>
-    <div id="horizon-container">
-        <div id="horizon-pitch">
-            <div id="horizon-sky"></div>
-            <div id="horizon-ground"></div>
-        </div>
-        <div id="horizon-crosshair"></div>
-    </div>
-    <div id="attitude-readout">PITCH: 0.0&deg; | ROLL: 0.0&deg; | HDG: 0.0&deg;</div>
-    
-    <div id="altimeter">
-        <div id="alt-tape"></div>
-        <div id="alt-pointer"></div>
-        <div id="alt-readout">0</div>
-    </div>
-    
-    <div id="speed-tape-container">
-        <div id="speed-tape"></div>
-        <div id="speed-pointer"></div>
-        <div id="speed-readout">0</div>
-    </div>
-    
-    <div id="graph-container">
-        <div id="graph-title">ATTITUDE DYNAMICS</div>
-        <div id="graph-legend"><span class="legend-pitch">PITCH</span> | <span class="legend-roll">ROLL</span> | <span class="legend-yaw">YAW</span></div>
-        <canvas id="graph-canvas" width="300" height="150"></canvas>
-    </div>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <script>
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x222222);
-        // Add subtle fog to blend the grid into the background
-        scene.fog = new THREE.Fog(0x222222, 50, 300);
-
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
-        camera.layers.set(0); // Main camera only sees Layer 0
-        
-        // Orthographic Minimap Camera
-        const mapCamera = new THREE.OrthographicCamera(-50, 50, 50, -50, 1, 1000);
-        mapCamera.position.set(0, 200, 0);
-        mapCamera.lookAt(0, 0, 0);
-        mapCamera.layers.enable(0); // See drone/world
-        mapCamera.layers.enable(1); // See minimap arrow
-
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;
-        renderer.autoClear = false; // Required for rendering multiple viewports
-        document.body.appendChild(renderer.domElement);
-
-        const controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-
-        // Lighting
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
-        hemiLight.position.set(0, 200, 0);
-        scene.add(hemiLight);
-
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
-        dirLight.position.set(50, 100, 50);
-        dirLight.castShadow = true;
-        scene.add(dirLight);
-
-        // Ground Grid
-        const grid = new THREE.GridHelper(5000, 500, 0x444444, 0x222222);
-        grid.position.y = -0.1;
-        scene.add(grid);
-
-        // Make the ground a dark plane to catch shadows
-        const planeGeo = new THREE.PlaneGeometry(5000, 5000);
-        const planeMat = new THREE.MeshStandardMaterial({color: 0x111111, depthWrite: false});
-        const plane = new THREE.Mesh(planeGeo, planeMat);
-        plane.rotation.x = -Math.PI / 2;
-        plane.position.y = -0.2;
-        plane.receiveShadow = true;
-        scene.add(plane);
-
-        // Procedural Cityscape (World Reference)
-        const cityGroup = new THREE.Group();
-        const bldgMat = new THREE.MeshStandardMaterial({ color: 0x88bbff, roughness: 0.5, metalness: 0.1 });
-        for(let i=0; i<300; i++) {
-            const w = 10 + Math.random() * 40;
-            const h = 20 + Math.random() * 200;
-            const d = 10 + Math.random() * 40;
-            const bldg = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bldgMat);
-            bldg.position.x = (Math.random() - 0.5) * 4000;
-            bldg.position.z = (Math.random() - 0.5) * 4000;
-            bldg.position.y = h / 2;
-            bldg.castShadow = true;
-            bldg.receiveShadow = true;
-            cityGroup.add(bldg);
-        }
-        scene.add(cityGroup);
-
-        // Minimap Arrow (Layer 1)
-        const arrowGeo = new THREE.ConeGeometry(5, 15, 3);
-        const arrowMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-        const arrow = new THREE.Mesh(arrowGeo, arrowMat);
-        arrow.rotation.x = -Math.PI / 2; // Point forward
-        arrow.layers.set(1);
-        scene.add(arrow);
-
-        // Build a minimalist drone
-        const drone = new THREE.Group();
-        
-        // Materials
-        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x4444ff });
-        const frontArmMat = new THREE.MeshStandardMaterial({ color: 0xff4444 }); // Front is Red
-        const backArmMat = new THREE.MeshStandardMaterial({ color: 0x888888 });
-
-        // Fuselage (Length: 4ft, Width: 0.5ft, Height: 0.5ft)
-        const fuselage = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 4), bodyMat);
-        fuselage.castShadow = true;
-        drone.add(fuselage);
-
-        // Front Arm (Width: 4ft across)
-        const frontArm = new THREE.Mesh(new THREE.BoxGeometry(4, 0.3, 0.3), frontArmMat);
-        frontArm.position.z = -1.5; // Forward in Three.js is -Z
-        frontArm.castShadow = true;
-        drone.add(frontArm);
-
-        // Back Arm
-        const backArm = new THREE.Mesh(new THREE.BoxGeometry(4, 0.3, 0.3), backArmMat);
-        backArm.position.z = 1.5; // Backward
-        backArm.castShadow = true;
-        drone.add(backArm);
-
-        scene.add(drone);
-        
-        // Flight Wake (Trail)
-        const maxTrailPoints = 1000;
-        const trailPoints = [];
-        const trailGeo = new THREE.BufferGeometry();
-        // Cyan color, transparent so it looks cool
-        const trailMat = new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2, transparent: true, opacity: 0.8 });
-        const trailLine = new THREE.Line(trailGeo, trailMat);
-        scene.add(trailLine);
-
-        // Initial camera position (behind and slightly above)
-        camera.position.set(10, 10, 15);
-        
-        // Window resize handler
-        window.addEventListener('resize', onWindowResize, false);
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
-
-        const hud = document.getElementById('hud');
-        let isChaseMode = true;
-        
-        controls.addEventListener('start', () => {
-            isChaseMode = false; // User took over camera
-        });
-
-        // Setup Altimeter Tape
-        const altTape = document.getElementById('alt-tape');
-        for(let i=-100; i<=2000; i+=10) {
-            const mark = document.createElement('div');
-            mark.className = 'alt-mark';
-            mark.style.bottom = (i * 2) + 'px'; // 2px per ft
-            mark.innerText = i % 50 === 0 ? i : '';
-            altTape.appendChild(mark);
-        }
-
-        // Setup Speed Tape
-        const speedTape = document.getElementById('speed-tape');
-        for(let i=0; i<=300; i+=5) {
-            const mark = document.createElement('div');
-            mark.className = 'speed-mark';
-            mark.style.bottom = (i * 2) + 'px'; // 2px per ft/s
-            mark.innerText = i % 25 === 0 ? i : '';
-            speedTape.appendChild(mark);
-        }
-
-        // Setup Live Graphing
-        const graphCanvas = document.getElementById('graph-canvas');
-        const graphCtx = graphCanvas.getContext('2d');
-        const maxGraphPoints = 150;
-        const pitchHistory = [];
-        const rollHistory = [];
-        const yawHistory = [];
-
-        // Server-Sent Events listener
-        const source = new EventSource("/stream");
-        source.onmessage = function(event) {
-            const state = JSON.parse(event.data);
+            print(f"[Viewer] Error parsing {input_files[0]}: {e}")
             
-            // MAVRIK (NED) -> Three.js (Y-up Right-Handed) Mapping:
-            // Three X (Right) = MAVRIK y (East)
-            // Three Y (Up)    = -MAVRIK z (Down)
-            // Three Z (Back)  = -MAVRIK x (North)
-            
-            drone.position.set(state.y, -state.z, -state.x);
+    if os.path.exists(active_vehicle_file):
+        active_vehicle_mtime = os.path.getmtime(active_vehicle_file)
+        with open(active_vehicle_file, 'rb') as f:
+            sha256 = hashlib.sha256(f.read()).hexdigest()
+        print(f"[Viewer] Airframe source: {active_vehicle_file} (sha256 {sha256[:8]}...)")
+    else:
+        print(f"[Viewer] Warning: Airframe source {active_vehicle_file} not found.")
 
-            // Quaternion Mapping:
-            // e0 is scalar (w). Three.js uses (x, y, z, w)
-            drone.quaternion.set(state.ey, -state.ez, -state.ex, state.e0);
+def get_git_hash():
+    try:
+        return subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('utf-8').strip()
+    except Exception:
+        return "unknown"
 
-            // Update Minimap Arrow to follow drone position and heading
-            arrow.position.copy(drone.position);
-            arrow.position.y = 100; // Hover above
+def get_file_sha256(filepath):
+    if not os.path.exists(filepath): return ""
+    with open(filepath, 'rb') as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+class UdpProtocol(asyncio.DatagramProtocol):
+    def __init__(self):
+        self.pkt_count = 0
+        super().__init__()
+
+    def connection_made(self, transport):
+        self.transport = transport
+        print(f"[UDP] Listening for MAVRIK state on port {UDP_PORT}...")
+
+    def datagram_received(self, data, addr):
+        global stats
+        if len(data) >= MAVRIK_SIZE:
+            stats["state_pkts"] += 1
+            self.pkt_count += 1
+            unpacked = struct.unpack(MAVRIK_FMT, data[:MAVRIK_SIZE])
+            global latest_frame
             
-            // Calculate Euler angles
-            const e0 = state.e0, ex = state.ex, ey = state.ey, ez = state.ez;
-            
-            // Clamp asin argument to [-1, 1] to prevent NaN from floating point errors
-            const pitchSin = Math.max(-1, Math.min(1, 2 * (e0 * ey - ez * ex)));
-            const pitchRad = Math.asin(pitchSin);
-            
-            const rollRad = Math.atan2(2 * (e0 * ex + ey * ez), e0 * e0 - ex * ex - ey * ey + ez * ez);
-            const yawRad = Math.atan2(2 * (e0 * ez + ex * ey), e0 * e0 + ex * ex - ey * ey - ez * ez);
-            
-            const pitchDeg = pitchRad * (180 / Math.PI);
-            const rollDeg = rollRad * (180 / Math.PI);
-            let yawDeg = yawRad * (180 / Math.PI);
-            if (yawDeg < 0) yawDeg += 360;
-            
-            // Point arrow along yaw
-            arrow.rotation.y = yawRad;
-            // Rotate Minimap Camera (Heading Up)
-            mapCamera.rotation.z = -yawRad;
-            
-            // Update Trail
-            if (trailPoints.length === 0 || trailPoints[trailPoints.length - 1].distanceTo(drone.position) > 0.5) {
-                trailPoints.push(drone.position.clone());
-                if (trailPoints.length > maxTrailPoints) {
-                    trailPoints.shift();
+            def clean(f):
+                return 0.0 if math.isnan(f) or math.isinf(f) else f
+                
+            latest_frame["t"] = clean(unpacked[0])
+            latest_frame["state"] = {
+                "t": clean(unpacked[0]), "u": clean(unpacked[1]), "v": clean(unpacked[2]), "w": clean(unpacked[3]),
+                "p": clean(unpacked[4]), "q": clean(unpacked[5]), "r": clean(unpacked[6]),
+                "x": clean(unpacked[7]), "y": clean(unpacked[8]), "z": clean(unpacked[9]),
+                "e0": clean(unpacked[10]), "ex": clean(unpacked[11]), "ey": clean(unpacked[12]), "ez": clean(unpacked[13])
+            }
+            if self.pkt_count % 35 == 0:
+                print(f"[UDP] Receiving Telemetry... t={latest_frame['t']:.2f}")
+                
+            # Recording logic
+            global last_rec_t, current_recording
+            t = latest_frame["t"]
+            if t < last_rec_t or current_recording is None:
+                if current_recording:
+                    current_recording.close()
+                current_recording = open(f"recordings/run_{int(time.time())}.jsonl", "w")
+                
+                header = {
+                    "type": "recording_header",
+                    "started_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z",
+                    "vehicle_file": active_vehicle_file,
+                    "vehicle_file_sha256": get_file_sha256(active_vehicle_file),
+                    "gains_file": "pid_vtol_gains.json",
+                    "gains_file_sha256": get_file_sha256("pid_vtol_gains.json"),
+                    "controller_mode": "mixed",
+                    "viewer_git_hash": get_git_hash(),
+                    "bridge_git_hash": get_git_hash(),
+                    "mavrik_version": "unknown",
+                    "notes": ""
                 }
-                trailGeo.setFromPoints(trailPoints);
+                current_recording.write(json.dumps(header) + "\n")
+                
+            last_rec_t = t
+            if current_recording:
+                current_recording.write(json.dumps(latest_frame) + "\n")
+                
+            # Broadcast to all clients via their individual queues
+            # This fixes the data aliasing bug
+            for q in client_queues:
+                if q.qsize() < 5: # prevent infinite buildup if client is slow
+                    q.put_nowait(latest_frame)
+
+class UdpActuatorProtocol(asyncio.DatagramProtocol):
+    def connection_made(self, transport):
+        self.transport = transport
+        print(f"[UDP] Listening for MAVRIK actuators on port 5010...")
+
+    def datagram_received(self, data, addr):
+        global latest_frame, stats
+        num_floats = len(data) // 4
+        if num_floats >= 9:
+            stats["actuator_pkts"] += 1
+            unpacked = struct.unpack(f"<{num_floats}f", data[:num_floats*4])
+            
+            if num_floats >= 10:
+                vals = unpacked[1:10]
+            else:
+                vals = unpacked[0:9]
+                
+            def clean(f):
+                return 0.0 if math.isnan(f) or math.isinf(f) else f
+                
+            latest_frame["actuators"] = {
+                "aileron": clean(vals[0]),
+                "elevator": clean(vals[1]),
+                "rudder": clean(vals[2]),
+                "thrFR": clean(vals[3]),
+                "thrFL": clean(vals[4]),
+                "thrAR": clean(vals[5]),
+                "thrAL": clean(vals[6]),
+                "flapsRight": clean(vals[7]),
+                "flapsLeft": clean(vals[8]),
+                "flaps": clean((vals[7] + vals[8]) / 2.0)
             }
             
-            // Update Graph Data
-            pitchHistory.push(pitchDeg);
-            rollHistory.push(rollDeg);
-            yawHistory.push(yawDeg > 180 ? yawDeg - 360 : yawDeg); // Normalize Yaw to +/- 180 for graph
-            if(pitchHistory.length > maxGraphPoints) pitchHistory.shift();
-            if(rollHistory.length > maxGraphPoints) rollHistory.shift();
-            if(yawHistory.length > maxGraphPoints) yawHistory.shift();
+            for q in client_queues:
+                if q.qsize() < 5:
+                    q.put_nowait(latest_frame)
 
-            // Camera Tracking
-            if (isChaseMode) {
-                // Fly behind the drone
-                const localOffset = new THREE.Vector3(0, 5, 25); // 25ft back, 5ft up
-                const rotatedOffset = localOffset.applyQuaternion(drone.quaternion);
-                const targetCamPos = drone.position.clone().add(rotatedOffset);
-                camera.position.lerp(targetCamPos, 0.1);
-                controls.target.copy(drone.position);
-            } else {
-                // Free orbit, just drag the camera along with the drone
-                const delta = drone.position.clone().sub(controls.target);
-                controls.target.copy(drone.position);
-                camera.position.add(delta);
+class UdpSetpointProtocol(asyncio.DatagramProtocol):
+    def connection_made(self, transport):
+        self.transport = transport
+        print(f"[UDP] Listening for PID setpoints on port 5011...")
+
+    def datagram_received(self, data, addr):
+        global latest_frame, stats
+        if len(data) >= 28:
+            stats["setpoint_pkts"] += 1
+            unpacked = struct.unpack('<7f', data[:28])
+            def clean(f):
+                return 0.0 if math.isnan(f) or math.isinf(f) else f
+            latest_frame["setpoint"] = {
+                "t": clean(unpacked[0]),
+                "x": clean(unpacked[1]),
+                "y": clean(unpacked[2]),
+                "z": clean(unpacked[3]),
+                "phi": clean(unpacked[4]),
+                "theta": clean(unpacked[5]),
+                "psi": clean(unpacked[6])
             }
 
-            // Update Artificial Horizon (translate 3px per degree of pitch)
-            document.getElementById('horizon-pitch').style.transform = `translateY(${pitchDeg * 3}px) rotate(${-rollDeg}deg)`;
-            document.getElementById('attitude-readout').innerHTML = `PITCH: ${pitchDeg.toFixed(1)}&deg; | ROLL: ${rollDeg.toFixed(1)}&deg; | HDG: ${yawDeg.toFixed(1)}&deg;`;
+class UdpStatusProtocol(asyncio.DatagramProtocol):
+    def connection_made(self, transport):
+        self.transport = transport
+        print(f"[UDP] Listening for status messages on port 5013...")
 
-            // Update Altimeter
-            const altFt = -state.z;
-            altTape.style.transform = `translateY(${altFt * 2}px)`;
-            document.getElementById('alt-readout').innerText = Math.round(altFt);
+    def datagram_received(self, data, addr):
+        try:
+            msg = json.loads(data.decode('utf-8'))
+            for q in client_queues:
+                if q.qsize() < 10:
+                    q.put_nowait(msg)
+        except Exception as e:
+            pass
 
-            // Update Speed Tape (Ground Speed = sqrt(u^2 + v^2))
-            const speedFps = Math.sqrt(state.u * state.u + state.v * state.v);
-            speedTape.style.transform = `translateY(${speedFps * 2}px)`;
-            document.getElementById('speed-readout').innerText = Math.round(speedFps);
+async def websocket_handler(request):
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+    
+    queue = asyncio.Queue()
+    client_queues.append(queue)
+    
+    # UDP socket to send RC overrides
+    rc_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    
+    async def receive_from_ws():
+        async for msg in ws:
+            if msg.type == web.WSMsgType.TEXT:
+                data = json.loads(msg.data)
+                if data.get("type") == "rc_override":
+                    pkt = struct.pack('<4f', data["roll"], data["pitch"], data["yaw"], data["throttle"])
+                    rc_sock.sendto(pkt, ('127.0.0.1', 5012))
+                    
+                    # Echo back for 6.3
+                    echo_msg = {
+                        "type": "rc_echo",
+                        "axes": [data["roll"], data["pitch"], data["yaw"], data["throttle"]]
+                    }
+                    for q in client_queues:
+                        if q.qsize() < 10:
+                            q.put_nowait(echo_msg)
+                    
+    recv_task = asyncio.create_task(receive_from_ws())
+    
+    try:
+        while True:
+            frame = await queue.get()
+            await ws.send_json(frame)
+    except Exception as e:
+        print(f"[HTTP] Client disconnected")
+    finally:
+        client_queues.remove(queue)
+        recv_task.cancel()
+        rc_sock.close()
+    
+    return ws
 
-            // Update HUD
-            hud.innerHTML = `
-                <b>TELEMETRY</b><br>
-                TIME:  ${state.t.toFixed(2)} s<br>
-                ALT:   ${(-state.z).toFixed(1)} ft<br>
-                VEL N: ${state.u.toFixed(1)} ft/s<br>
-                VEL E: ${state.v.toFixed(1)} ft/s<br>
-                VEL D: ${state.w.toFixed(1)} ft/s
-            `;
-        };
-
-        function animate() {
-            requestAnimationFrame(animate);
-            controls.update();
+async def airframe_endpoint(request):
+    global active_vehicle_mtime
+    try:
+        if os.path.exists(active_vehicle_file):
+            current_mtime = os.path.getmtime(active_vehicle_file)
+            if current_mtime > active_vehicle_mtime:
+                print(f"[Viewer] WARNING: {active_vehicle_file} changed mid-session. Viewer may be stale.")
+                active_vehicle_mtime = current_mtime
+                
+        with open(active_vehicle_file, "r") as f:
+            vtol_config = json.load(f)
             
-            // Render Graph
-            graphCtx.clearRect(0, 0, graphCanvas.width, graphCanvas.height);
-            // Draw Center Line (0 degrees)
-            const midY = graphCanvas.height / 2;
-            graphCtx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-            graphCtx.lineWidth = 1;
-            graphCtx.beginPath();
-            graphCtx.moveTo(0, midY);
-            graphCtx.lineTo(graphCanvas.width, midY);
-            graphCtx.stroke();
+        components = []
+        for name, comp in vtol_config.get("components", {}).items():
+            components.append({
+                "name": name,
+                "type": comp.get("type"),
+                "location": comp.get("location[ft]", [0,0,0]),
+                "attitude": comp.get("attitude[deg]", [0,0,0]),
+                "lengths": comp.get("lengths[ft]", [0,0,0]),
+                "semispan": comp.get("semispan[ft]"),
+                "chord": comp.get("chord[ft]"),
+                "control_surface": comp.get("control_surface"),
+                "control_symmetric": comp.get("control_symmetric")
+            })
             
-            // Draw Graph Lines
-            const drawLine = (data, color) => {
-                if (data.length === 0) return;
-                graphCtx.strokeStyle = color;
-                graphCtx.lineWidth = 2;
-                graphCtx.beginPath();
-                const stepX = graphCanvas.width / maxGraphPoints;
-                for(let i=0; i<data.length; i++) {
-                    const x = i * stepX;
-                    // Scale data: 1 degree = 2 pixels
-                    const y = midY - (data[i] * 2);
-                    if(i===0) graphCtx.moveTo(x, y);
-                    else graphCtx.lineTo(x, y);
-                }
-                graphCtx.stroke();
-            };
-            drawLine(pitchHistory, '#ff4444');
-            drawLine(rollHistory, '#4444ff');
-            drawLine(yawHistory, '#00ff00');
-            
-            // 1. Render Main Fullscreen Camera
-            renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
-            renderer.setScissor(0, 0, window.innerWidth, window.innerHeight);
-            renderer.setScissorTest(true);
-            renderer.clear();
-            renderer.render(scene, camera);
+        return web.json_response(components)
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
 
-            // 2. Render Minimap Camera
-            mapCamera.position.x = drone.position.x;
-            mapCamera.position.z = drone.position.z;
-            
-            const minimap = document.getElementById('minimap-container');
-            const rect = minimap.getBoundingClientRect();
-            // WebGL coordinates are bottom-up, so Y is innerHeight - rect.bottom
-            renderer.setViewport(rect.left, window.innerHeight - rect.bottom, rect.width, rect.height);
-            renderer.setScissor(rect.left, window.innerHeight - rect.bottom, rect.width, rect.height);
-            renderer.setScissorTest(true);
-            renderer.render(scene, mapCamera);
+async def list_recordings(request):
+    files = sorted(os.listdir("recordings"), reverse=True)
+    return web.json_response([f for f in files if f.endswith('.jsonl')])
+
+async def index(request):
+    return web.FileResponse('./static/index.html')
+
+async def stats_loop():
+    global stats
+    while True:
+        await asyncio.sleep(1.0)
+        stats_msg = {
+            "type": "stats",
+            "state_hz": stats["state_pkts"],
+            "actuator_hz": stats["actuator_pkts"],
+            "setpoint_hz": stats["setpoint_pkts"],
+            "state_drop": max(0, (35 - stats["state_pkts"]) / 35.0),
+            "actuator_drop": max(0, (50 - stats["actuator_pkts"]) / 50.0),
+            "setpoint_drop": max(0, (50 - stats["setpoint_pkts"]) / 50.0)
         }
-        animate();
+        for q in client_queues:
+            if q.qsize() < 10:
+                q.put_nowait(stats_msg)
+        stats["state_pkts"] = 0
+        stats["actuator_pkts"] = 0
+        stats["setpoint_pkts"] = 0
 
-        // UI Button Functions
-        function zoom(amount) {
-            const dir = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
-            camera.position.addScaledVector(dir, amount);
-        }
-        function pan(dx, dy) {
-            // Get camera right and up vectors to pan along the screen plane
-            const right = new THREE.Vector3();
-            const up = new THREE.Vector3();
-            camera.matrixWorld.extractBasis(right, up, new THREE.Vector3());
-            
-            controls.target.addScaledVector(right, dx);
-            controls.target.addScaledVector(up, dy);
-            camera.position.addScaledVector(right, dx);
-            camera.position.addScaledVector(up, dy);
-        }
-        function resetCam() {
-            isChaseMode = true; // Return to chase view behind drone
-        }
-    </script>
-</body>
-</html>
-"""
-
-class RequestHandler(BaseHTTPRequestHandler):
-    def log_message(self, format, *args):
-        pass # Suppress standard HTTP logging for clean terminal
-        
-    def do_GET(self):
-        if self.path == '/':
-            self.send_response(200)
-            self.send_header("Content-type", "text/html")
-            self.end_headers()
-            self.wfile.write(HTML_CONTENT.encode("utf-8"))
-            
-        elif self.path == '/stream':
-            self.send_response(200)
-            self.send_header("Content-type", "text/event-stream")
-            self.send_header("Cache-Control", "no-cache")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            
-            print(f"[HTTP] Client connected to SSE stream from {self.client_address}")
-            try:
-                while True:
-                    # Send the latest state as a JSON string
-                    data_str = json.dumps(latest_state)
-                    self.wfile.write(f"data: {data_str}\n\n".encode("utf-8"))
-                    self.wfile.flush()
-                    time.sleep(1/30.0) # 30Hz update rate
-            except Exception:
-                print(f"[HTTP] Client disconnected from {self.client_address}")
-        else:
-            self.send_response(404)
-            self.end_headers()
-
-def run_server():
-    server = ThreadingHTTPServer(("0.0.0.0", HTTP_PORT), RequestHandler)
-    print(f"[HTTP] Web Viewer running at http://localhost:{HTTP_PORT}")
-    server.serve_forever()
-
-if __name__ == "__main__":
+async def main():
     print("==================================================")
     print("  MAVRIK Native Web Viewer  ")
     print("==================================================")
     
-    # Start UDP listener in background thread
-    threading.Thread(target=udp_listener, daemon=True).start()
+    find_vehicle_file()
     
-    # Start HTTP server on main thread
-    run_server()
+    loop = asyncio.get_running_loop()
+    
+    asyncio.create_task(stats_loop())
+    transport_state, _ = await loop.create_datagram_endpoint(
+        lambda: UdpProtocol(),
+        local_addr=(UDP_IP, UDP_PORT)
+    )
+    
+    transport_actuators, _ = await loop.create_datagram_endpoint(
+        lambda: UdpActuatorProtocol(),
+        local_addr=(UDP_IP, 5010)
+    )
+    
+    transport_setpoint, _ = await loop.create_datagram_endpoint(
+        lambda: UdpSetpointProtocol(),
+        local_addr=(UDP_IP, 5011)
+    )
+    
+    transport_status, _ = await loop.create_datagram_endpoint(
+        lambda: UdpStatusProtocol(),
+        local_addr=(UDP_IP, 5013)
+    )
+    
+    app = web.Application()
+    app.router.add_get('/', index)
+    app.router.add_get('/ws', websocket_handler)
+    app.router.add_get('/airframe', airframe_endpoint)
+    app.router.add_get('/recordings', list_recordings)
+    app.router.add_static('/recordings/', './recordings/')
+    app.router.add_static('/', './static/')
+    
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', HTTP_PORT)
+    await site.start()
+    print(f"[HTTP] Web Viewer running at http://localhost:{HTTP_PORT}")
+    
+    try:
+        await asyncio.Future() # Run forever
+    except asyncio.CancelledError:
+        pass
+    finally:
+        transport_state.close()
+        transport_actuators.close()
+        transport_setpoint.close()
+        transport_status.close()
+        if current_recording:
+            current_recording.close()
+        await runner.cleanup()
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nShutting down.")
