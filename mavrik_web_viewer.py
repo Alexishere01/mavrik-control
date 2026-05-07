@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import struct
 import json
 import asyncio
@@ -11,6 +10,39 @@ import hashlib
 import glob
 import subprocess
 import datetime
+
+# ── MAVLink helpers (no external deps) ─────────────────────────────────────
+def _x25crc(data: bytes) -> int:
+    crc = 0xFFFF
+    for b in data:
+        tmp = b ^ (crc & 0xFF)
+        tmp ^= (tmp << 4) & 0xFF
+        crc = ((crc >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4)) & 0xFFFF
+    return crc
+
+_mav_seq = 0
+
+def _mav_pkt(msg_id: int, payload: bytes, crc_extra: int) -> bytes:
+    global _mav_seq
+    seq = _mav_seq & 0xFF
+    _mav_seq += 1
+    header = bytes([len(payload), seq, 255, 0, msg_id])  # sysid=255 (GCS)
+    crc = _x25crc(header + payload + bytes([crc_extra]))
+    return b'\xFE' + header + payload + struct.pack('<H', crc)
+
+def build_command_long(cmd: int, p1=0.0, p2=0.0, p3=0.0, p4=0.0, p5=0.0, p6=0.0, p7=0.0) -> bytes:
+    """MAVLink v1 COMMAND_LONG (msg_id=76, CRC_EXTRA=152)"""
+    payload = struct.pack('<fffffffHBBB', p1, p2, p3, p4, p5, p6, p7, cmd, 1, 1, 0)
+    return _mav_pkt(76, payload, 152)
+
+def build_set_mode(custom_mode: int) -> bytes:
+    """MAVLink v1 SET_MODE (msg_id=11, CRC_EXTRA=89)"""
+    payload = struct.pack('<LBB', custom_mode, 1, 1)  # custom_mode, base_mode=1, target_sys
+    return _mav_pkt(11, payload, 89)
+
+_mavlink_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+ARDUPILOT_MAVLINK = ('127.0.0.1', 14550)
+MODE_NAMES = {0:'STABILIZE', 2:'ALT_HOLD', 5:'LOITER', 6:'RTL', 9:'LAND'}
 
 # MAVRIK's Graphics send port from connections.json
 UDP_IP = "0.0.0.0"
@@ -239,11 +271,10 @@ async def websocket_handler(request):
         async for msg in ws:
             if msg.type == web.WSMsgType.TEXT:
                 data = json.loads(msg.data)
+                # ── RC override ──
                 if data.get("type") == "rc_override":
                     pkt = struct.pack('<4f', data["roll"], data["pitch"], data["yaw"], data["throttle"])
                     rc_sock.sendto(pkt, ('127.0.0.1', 5012))
-                    
-                    # Echo back for 6.3
                     echo_msg = {
                         "type": "rc_echo",
                         "axes": [data["roll"], data["pitch"], data["yaw"], data["throttle"]]
@@ -251,7 +282,29 @@ async def websocket_handler(request):
                     for q in client_queues:
                         if q.qsize() < 10:
                             q.put_nowait(echo_msg)
-                    
+                # ── ARM / DISARM ──
+                elif data.get("type") == "arm":
+                    arm_val = 1.0 if data.get("value") else 0.0
+                    force   = 21196.0 if data.get("force") else 0.0
+                    pkt = build_command_long(400, arm_val, force)  # MAV_CMD_COMPONENT_ARM_DISARM
+                    _mavlink_sock.sendto(pkt, ARDUPILOT_MAVLINK)
+                    armed = bool(data.get("value"))
+                    ack = {"type": "gcs_ack", "armed": armed}
+                    for q in client_queues:
+                        if q.qsize() < 10:
+                            q.put_nowait(ack)
+                    print(f"[GCS] {'ARM' if armed else 'DISARM'} sent to ArduPilot")
+                # ── SET MODE ──
+                elif data.get("type") == "set_mode":
+                    mode_id = int(data.get("mode_id", 0))
+                    pkt = build_set_mode(mode_id)
+                    _mavlink_sock.sendto(pkt, ARDUPILOT_MAVLINK)
+                    mode_name = MODE_NAMES.get(mode_id, str(mode_id))
+                    ack = {"type": "gcs_ack", "mode_name": mode_name}
+                    for q in client_queues:
+                        if q.qsize() < 10:
+                            q.put_nowait(ack)
+                    print(f"[GCS] SET_MODE {mode_name} ({mode_id}) sent to ArduPilot")
     recv_task = asyncio.create_task(receive_from_ws())
     
     try:

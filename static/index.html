@@ -15,12 +15,22 @@
                 <button onclick="setMode('rc_config')">RC Config</button>
             </div>
             <div id="tb-status">
-                <span id="recording-status" style="color:#aaa;">REC: OFF</span> | 
+                <span id="gcs-armed-label" class="state-disarmed" title="SPACE=Arm | SHIFT+SPACE=Disarm">DISARMED</span>
+                &nbsp;|
+                <select id="mode-select" title="Select mode, then press Enter or click SET">
+                    <option value="0">Stabilize</option>
+                    <option value="2">AltHold</option>
+                    <option value="5">Loiter</option>
+                    <option value="6">RTL</option>
+                    <option value="9">Land</option>
+                </select>
+                <button onclick="sendMode()" class="mode-btn" style="padding:2px 8px; font-size:11px;">SET</button>
+                &nbsp;|
+                <span id="recording-status" style="color:#aaa;">REC: OFF</span> |
                 <span id="rc-override-status" style="color:#aaa;">RC: OFF</span>
             </div>
         </div>
 
-        <!-- MAIN VIEWPORT -->
         <div id="main-region">
             <div id="viewport3d"></div>
             
@@ -97,15 +107,15 @@
         <!-- BOTTOM PANEL -->
         <div id="bottom-panel">
             <div class="graph-box">
-                <div class="graph-title">ROLL (Cmd vs Actual)</div>
+                <div class="graph-title" id="title-roll">ROLL (Cmd vs Actual)</div>
                 <canvas id="graph-roll"></canvas>
             </div>
             <div class="graph-box">
-                <div class="graph-title">PITCH (Cmd vs Actual)</div>
+                <div class="graph-title" id="title-pitch">PITCH (Cmd vs Actual)</div>
                 <canvas id="graph-pitch"></canvas>
             </div>
             <div class="graph-box">
-                <div class="graph-title">YAW (Cmd vs Actual)</div>
+                <div class="graph-title" id="title-yaw">YAW (Cmd vs Actual)</div>
                 <canvas id="graph-yaw"></canvas>
             </div>
         </div>

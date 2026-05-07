@@ -9,7 +9,7 @@
         "control_port": 5006
     },
     "pwm_mapping": {
-        "flaps_fixed": 0.99,
+        "flaps_fixed": 1.0,
         "aileron_channel":  null,
         "elevator_channel": null,
         "rudder_channel":   null,

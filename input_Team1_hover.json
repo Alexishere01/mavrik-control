@@ -1,7 +1,7 @@
 {
     "license_filename": "license.txt",
     "simulation": {
-        "end_time": 140,
+        "end_time": 400,
         "states_print_rate": 30,
         "pulse_rate": 0.25,
         "time_step": 0.0,
@@ -51,10 +51,10 @@
                     "rudder[deg]": 0,
                     "flapsRight": 0.99,
                     "flapsLeft": 0.99,
-                    "throttleFwdRight": 0.39,
-                    "throttleFwdLeft": 0.39,
-                    "throttleAftRight": 0.414,
-                    "throttleAftLeft": 0.414
+                    "throttleFwdRight": 0.394,
+                    "throttleFwdLeft": 0.394,
+                    "throttleAftRight": 0.410,
+                    "throttleAftLeft": 0.410
                 }
             }
         }

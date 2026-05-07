@@ -6,10 +6,6 @@ body { margin: 0; overflow: hidden; background-color: #1a1a1a; font-family: sans
     width: 100vw;
     grid-template-rows: 40px 1fr 150px;
     grid-template-columns: 1fr 300px;
-    grid-template-areas:
-        "topbar topbar"
-        "main right"
-        "bottom bottom";
     transition: all 0.3s ease;
 }
 
@@ -26,34 +22,50 @@ body.rc_config-mode #app-container {
     grid-template-rows: 40px 1fr 0px;
     grid-template-columns: 1fr 300px;
 }
-/* Hide HUD overlay in RC config mode */
-body.rc_config-mode #hud-overlay {
-    display: none;
-}
-/* Hide overflow when panels are collapsed */
+body.rc_config-mode #hud-overlay { display: none; }
 #right-panel, #bottom-panel { overflow: hidden; }
+
+/* explicit grid placement */
+#topbar      { grid-row: 1; grid-column: 1 / -1; }
+#main-region { grid-row: 2; grid-column: 1;       }
+#right-panel { grid-row: 2; grid-column: 2;       }
+#bottom-panel{ grid-row: 3; grid-column: 1 / -1;  }
 
 /* TOPBAR */
 #topbar {
-    grid-area: topbar;
     background: #222;
     border-bottom: 1px solid #444;
     display: flex;
     align-items: center;
     padding: 0 15px;
     justify-content: space-between;
+    overflow: hidden;
+    position: relative;
+    z-index: 50;
+    gap: 8px;
 }
-#tb-modes button { margin-right: 5px; }
+#tb-modes { display: flex; gap: 4px; flex-shrink: 0; }
+#tb-modes button { white-space: nowrap; }
+#tb-status { display: flex; align-items: center; gap: 6px; font-family: monospace; font-size: 12px; flex-shrink: 0; }
+#tb-vehicle { font-size: 12px; color: #aaa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#mode-select { background: #222; color: #eee; border: 1px solid #555; border-radius: 4px; padding: 2px 4px; font-size: 11px; }
+.state-armed    { color: #00ff88; font-weight: bold; font-size: 12px; cursor: help; white-space: nowrap; }
+.state-disarmed { color: #ff4444; font-weight: bold; font-size: 12px; cursor: help; white-space: nowrap; }
+.mode-btn { background: #003366; border: 1px solid #0066cc; color: #fff; border-radius: 4px; cursor: pointer; }
+.mode-btn:hover { background: #0055aa; }
 
 /* MAIN REGION */
 #main-region {
-    grid-area: main;
     position: relative;
     overflow: hidden;
+    z-index: 1;
 }
 #viewport3d {
     width: 100%; height: 100%;
+    overflow: hidden;      /* clip any canvas overflow */
 }
+/* Ensure Three.js canvas doesn't create inline-gap or overflow */
+#viewport3d canvas { display: block; }
 #hud-overlay {
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
@@ -64,7 +76,6 @@ body.rc_config-mode #hud-overlay {
 
 /* RIGHT PANEL */
 #right-panel {
-    grid-area: right;
     background: #1e1e1e;
     border-left: 1px solid #444;
     display: flex;
@@ -82,12 +93,12 @@ body.rc_config-mode #hud-overlay {
 
 /* BOTTOM PANEL */
 #bottom-panel {
-    grid-area: bottom;
     background: #1e1e1e;
     border-top: 1px solid #444;
     display: flex;
     padding: 10px;
     gap: 10px;
+    overflow: hidden;
 }
 .graph-box {
     flex: 1;

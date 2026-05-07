@@ -241,6 +241,19 @@ window.cycleCamera = function() {
 
 window.addEventListener('keydown', (e) => {
     if (e.key === 'c' || e.key === 'C') window.cycleCamera();
+    // SPACE = ARM, SHIFT+SPACE = DISARM  (ignore when typing in input/select)
+    if (e.key === ' ' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') {
+        e.preventDefault();
+        if (e.shiftKey) {
+            window.sendArm(false);
+        } else {
+            window.sendArm(true);
+        }
+    }
+    // ENTER on mode-select triggers set mode
+    if (e.key === 'Enter' && document.activeElement.id === 'mode-select') {
+        window.sendMode();
+    }
 });
 
 controls.addEventListener('start', () => {
@@ -809,13 +822,13 @@ function animate() {
         const updateTiltMotor = (name, flaps) => {
             if (airframeComponents[name]) {
                 const grp = airframeComponents[name].group;
-                // Pitch in Three.js is around X axis. Nose up is positive X.
-                const tiltDeg = 90 * Math.sin(Math.PI/4 * flaps);
+                // Motor tilts linearly from 0 to 90 degrees based on flaps
+                const tiltDeg = 90 * flaps;
                 grp.rotation.x = tiltDeg * Math.PI / 180;
                 
-                // Update translation
-                const xb = 1 + Math.sin(Math.PI/4 * flaps + Math.PI/4);
-                const zb = -Math.sin(Math.PI/4 * flaps);
+                // MAVRIK linear interpolation does not offset location, so we don't move the base
+                const xb = 1;
+                const zb = 0;
                 // Three.js position: y is right, -z is down, -x is fwd
                 // Wait, [cx, cy, cz] = location.
                 // group.position.set(cy, -cz, -cx)
@@ -827,12 +840,8 @@ function animate() {
                 // Actually the user's task 3.2 says:
                 // xb = 1 + sin((π/4)*flaps + π/4)
                 // zb = -sin((π/4)*flaps)
-                // We should offset the location from the base. Let's just assume the base is where it is when flaps=0, and offset by differences.
-                // At flaps=0: xb = 1 + sin(PI/4) = 1.707
-                // zb = 0
-                // So delta_x = xb - 1.707, delta_z = zb
-                const dx = xb - (1 + Math.sin(Math.PI/4));
-                const dz = zb;
+                const dx = 0;
+                const dz = 0;
                 
                 // MAVRIK base is baseLoc. new location is baseLoc + delta.
                 const cx = baseLoc[0] + dx;
@@ -887,6 +896,28 @@ function animate() {
     drawGraph(graphRollCtx, rollHistory, rollCmdHistory, '#4444ff');
     drawGraph(graphPitchCtx, pitchHistory, pitchCmdHistory, '#ff4444');
     drawGraph(graphYawCtx, yawHistory, yawCmdHistory, '#00ff00');
+    
+    // Update graph titles with actual values
+    const curRollCmd = rollCmdHistory.length ? rollCmdHistory[rollCmdHistory.length - 1] : 0;
+    const curPitchCmd = pitchCmdHistory.length ? pitchCmdHistory[pitchCmdHistory.length - 1] : 0;
+    const curYawCmd = yawCmdHistory.length ? yawCmdHistory[yawCmdHistory.length - 1] : 0;
+    const curRollVal = rollHistory.length ? rollHistory[rollHistory.length - 1] : 0;
+    const curPitchVal = pitchHistory.length ? pitchHistory[pitchHistory.length - 1] : 0;
+    const curYawVal = yawHistory.length ? yawHistory[yawHistory.length - 1] : 0;
+
+    const errRoll = Math.abs(curRollCmd - curRollVal).toFixed(1);
+    const errPitch = Math.abs(curPitchCmd - curPitchVal).toFixed(1);
+    const errYaw = Math.abs(curYawCmd - curYawVal).toFixed(1);
+    
+    const elRoll = document.getElementById('title-roll');
+    if (elRoll) elRoll.innerText = `ROLL | Cmd: ${curRollCmd.toFixed(1)}° | Act: ${curRollVal.toFixed(1)}° | Err: ${errRoll}°`;
+    
+    const elPitch = document.getElementById('title-pitch');
+    if (elPitch) elPitch.innerText = `PITCH | Cmd: ${curPitchCmd.toFixed(1)}° | Act: ${curPitchVal.toFixed(1)}° | Err: ${errPitch}°`;
+    
+    const elYaw = document.getElementById('title-yaw');
+    if (elYaw) elYaw.innerText = `YAW | Cmd: ${curYawCmd.toFixed(1)}° | Act: ${curYawVal.toFixed(1)}° | Err: ${errYaw}°`;
+    
     const vp = document.getElementById('viewport3d');
     renderer.setViewport(0, 0, vp.clientWidth, vp.clientHeight);
     renderer.setScissor(0, 0, vp.clientWidth, vp.clientHeight);
@@ -897,11 +928,13 @@ function animate() {
     mapCamera.position.x = drone.position.x;
     mapCamera.position.z = drone.position.z;
     
+    const vpRect = vp.getBoundingClientRect();
     const minimap = document.getElementById('minimap-container');
     if (minimap && window.getComputedStyle(minimap).display !== 'none') {
         const rect = minimap.getBoundingClientRect();
-        renderer.setViewport(rect.left, window.innerHeight - rect.bottom, rect.width, rect.height);
-        renderer.setScissor(rect.left, window.innerHeight - rect.bottom, rect.width, rect.height);
+        const bottomOffset = vpRect.bottom - rect.bottom;
+        renderer.setViewport(rect.left, bottomOffset, rect.width, rect.height);
+        renderer.setScissor(rect.left, bottomOffset, rect.width, rect.height);
         renderer.setScissorTest(true);
         renderer.render(scene, mapCamera);
     }
@@ -910,8 +943,9 @@ function animate() {
     const axisDiv = document.getElementById('axis-indicator');
     if (axisDiv && window.getComputedStyle(axisDiv).display !== 'none') {
         const rect = axisDiv.getBoundingClientRect();
-        renderer.setViewport(rect.left, window.innerHeight - rect.bottom, rect.width, rect.height);
-        renderer.setScissor(rect.left, window.innerHeight - rect.bottom, rect.width, rect.height);
+        const bottomOffset = vpRect.bottom - rect.bottom;
+        renderer.setViewport(rect.left, bottomOffset, rect.width, rect.height);
+        renderer.setScissor(rect.left, bottomOffset, rect.width, rect.height);
         renderer.setScissorTest(true);
         axisCamera.position.copy(camera.position);
         axisCamera.position.sub(controls.target);
@@ -930,6 +964,68 @@ function zoom(amount) {
     const dir = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
     camera.position.addScaledVector(dir, amount);
 }
+function pan(dx, dy) {
+    const right = new THREE.Vector3();
+    const up = new THREE.Vector3();
+    camera.matrixWorld.extractBasis(right, up, new THREE.Vector3());
+    
+    controls.target.addScaledVector(right, dx);
+    controls.target.addScaledVector(up, dy);
+    camera.position.addScaledVector(right, dx);
+    camera.position.addScaledVector(up, dy);
+}
+function resetCam() {
+    isChaseMode = true;
+}
+
+// --- GCS ARM / MODE CONTROL ---
+const MODE_NAMES = { 0:'STABILIZE', 2:'ALT_HOLD', 5:'LOITER', 6:'RTL', 9:'LAND' };
+
+window.sendArm = function(arm) {
+    if (ws.readyState !== WebSocket.OPEN) { alert('WebSocket not connected.'); return; }
+    if (arm && !confirm('ARM motors? (Force arm — bypasses pre-arm checks)')) return;
+    ws.send(JSON.stringify({ type: 'arm', value: arm, force: arm }));
+    const label = document.getElementById('gcs-armed-label');
+    if (label) { label.innerText = arm ? 'ARMING...' : 'DISARMING...'; label.style.color = '#ffaa00'; }
+};
+
+window.sendMode = function() {
+    if (ws.readyState !== WebSocket.OPEN) { alert('WebSocket not connected.'); return; }
+    const sel = document.getElementById('mode-select');
+    if (!sel) return;
+    const modeId = parseInt(sel.value);
+    ws.send(JSON.stringify({ type: 'set_mode', mode_id: modeId }));
+};
+
+// Handle GCS ack from server
+const _origOnMessage = ws.onmessage;
+ws.onmessage = function(event) {
+    const msg = JSON.parse(event.data);
+    if (msg.type === 'gcs_ack') {
+        const armedLabel = document.getElementById('gcs-armed-label');
+        if (armedLabel && msg.armed !== undefined) {
+            armedLabel.innerText = msg.armed ? 'ARMED' : 'DISARMED';
+            armedLabel.className = msg.armed ? 'state-armed' : 'state-disarmed';
+            armedLabel.style.color = '';
+        }
+        return;
+    }
+    _origOnMessage.call(ws, event);
+};
+
+function pan(dx, dy) {
+    const right = new THREE.Vector3();
+    const up = new THREE.Vector3();
+    camera.matrixWorld.extractBasis(right, up, new THREE.Vector3());
+    controls.target.addScaledVector(right, dx);
+    controls.target.addScaledVector(up, dy);
+    camera.position.addScaledVector(right, dx);
+    camera.position.addScaledVector(up, dy);
+}
+function resetCam() {
+    isChaseMode = true;
+}
+
 function pan(dx, dy) {
     const right = new THREE.Vector3();
     const up = new THREE.Vector3();

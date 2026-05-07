@@ -131,20 +131,11 @@ DEFAULT_CONFIG = {
     "flaps_value": 0.99,
 
     "trim": {
-        "description": (
-            "Computed for W=160 lbf, T0=80 lbf/motor, fwd tilt 63°, "
-            "CG x=-1.10. Override here if MAVRIK reports different mass props."
-        ),
-        "throttle_fwd": 0.687,
-        "throttle_aft": 0.388,
+        "description": "Symmetric trim for Team1_VTOL.json",
+        "throttle": 0.60,
         "aileron_deg": 0.0,
         "elevator_deg": 0.0,
-        "rudder_deg": 0.0,
-        "lift_balance_factor": 0.892,
-        "_note_lift_balance": (
-            "= sin(fwd_tilt). When pitch loop adds delta to fwd, "
-            "we subtract delta*lift_balance_factor from aft to keep total lift constant."
-        )
+        "rudder_deg": 0.0
     },
 
     "safety": {
@@ -187,13 +178,13 @@ DEFAULT_CONFIG = {
     },
 
     "pitch_attitude": {
-        "kp": 2.0, "ki": 0.0, "kd": 0.2,
-        "output_min": -30.0, "output_max": 30.0,
+        "kp": 3.0, "ki": 0.0, "kd": 0.2,
+        "output_min": -40.0, "output_max": 40.0,
         "_note": "pitch error (deg) -> pitch rate cmd (deg/s)"
     },
     "pitch_rate": {
-        "kp": 0.002, "ki": 0.0005, "kd": 0.0001,
-        "output_min": -0.10, "output_max": 0.10, "integrator_max": 3.0,
+        "kp": 0.003, "ki": 0.0005, "kd": 0.0001,
+        "output_min": -0.15, "output_max": 0.15, "integrator_max": 3.0,
         "_note": "pitch rate error (deg/s) -> differential throttle"
     },
 
@@ -296,9 +287,7 @@ class VTOLController:
 
         # Trim
         t = c["trim"]
-        self.trim_fwd = t["throttle_fwd"]
-        self.trim_aft = t["throttle_aft"]
-        self.lift_balance = t.get("lift_balance_factor", 0.892)
+        self.trim_throttle = t["throttle"]
         self.trim_ail = t["aileron_deg"]
         self.trim_ele = t["elevator_deg"]
         self.trim_rud = t["rudder_deg"]
@@ -310,7 +299,7 @@ class VTOLController:
         self.max_surf_step = s["max_surface_step_deg"]
         self.ramp_seconds = s["ramp_in_seconds"]
         self.warmup_seconds = s.get("warmup_seconds", 0.0)
-        self.last_thr = [self.trim_fwd, self.trim_fwd, self.trim_aft, self.trim_aft]
+        self.last_thr = [self.trim_throttle, self.trim_throttle, self.trim_throttle, self.trim_throttle]
         self.last_rud = self.trim_rud
 
         # Initial-state holders (populated on first state packet)
@@ -413,8 +402,7 @@ class VTOLController:
         print("=" * 72)
         print(f"  roll_rate kp={self.cfg['roll_rate']['kp']}  roll_att output_max={self.cfg['roll_attitude']['output_max']}")
         print(f"  Mode:           {c['mode']}  (base_flaps={self.base_flaps})")
-        print(f"  Trim throttle:  fwd={self.trim_fwd:.3f}  aft={self.trim_aft:.3f}")
-        print(f"  Lift balance:   {self.lift_balance:.3f}  (sin of fwd tilt angle)")
+        print(f"  Trim throttle:  {self.trim_throttle:.3f}")
         print(f"  Loop rate:      {self.loop_hz} Hz")
         print(f"  Rate limits:    {self.max_thr_step}/tick throttle, "
               f"{self.max_surf_step}°/tick surface")
@@ -455,8 +443,18 @@ class VTOLController:
             e0, ex, ey, ez = state[10], state[11], state[12], state[13]
 
             phi, theta, psi = quat_to_euler(e0, ex, ey, ez)
-            alt = -zf
-            climb = -w
+            alt = max(-zf, 0.0)   # software ground clamp — altitude never goes below 0
+
+            # Rotate body velocity [u,v,w] into world frame Z component to get true climb rate
+            # V_world_z = 2*(ex*ez - e0*ey)*u + 2*(ey*ez + e0*ex)*v + (e0*e0 - ex*ex - ey*ey + ez*ez)*w
+            vz_world = (2.0 * (ex*ez - e0*ey)) * u + \
+                       (2.0 * (ey*ez + e0*ex)) * v + \
+                       (e0*e0 - ex*ex - ey*ey + ez*ez) * w
+            climb = -vz_world
+
+            # Ground detection: consider on-ground if very close to 0 ft
+            GROUND_HEIGHT_FT = 0.5   # anything below this counts as ground contact
+            on_ground = (alt <= GROUND_HEIGHT_FT)
             phi_d, theta_d, psi_d = phi * RAD2DEG, theta * RAD2DEG, psi * RAD2DEG
             p_d, q_d, r_d = p * RAD2DEG, q * RAD2DEG, r * RAD2DEG
 
@@ -469,6 +467,8 @@ class VTOLController:
                 self.initial_u     = u
                 self.rc_alt_cmd    = alt
                 self.rc_heading_cmd = psi_d
+                self.rc_phi_cmd    = phi_d   # bumpless roll entry
+                self.rc_theta_cmd  = theta_d # bumpless pitch entry
                 print(f"  Initial: phi={phi_d:.1f}° theta={theta_d:.1f}° "
                       f"psi={psi_d:.1f}° alt={alt:.0f} ft  u={u:.1f} fps")
                 print(f"  Holding initial state for {self.warmup_seconds:.1f}s, "
@@ -487,43 +487,57 @@ class VTOLController:
             t_since_start = t - self.t_start
             ramp = clamp(t_since_start / max(self.ramp_seconds, 1e-6), 0.0, 1.0)
 
-            rc_active = (t - self.last_rc_t) < 0.5
-            
-            # Detect RC transitions
+            rc_active = (t - self.last_rc_t) < 1.5   # 1.5s timeout (was 0.5s)
+
+            # Detect RC transitions — seed integrated cmds for bumpless entry
             if rc_active and not self.prev_rc_active:
-                print(f"[pid_vtol] RC override: ACTIVE")
+                self.rc_phi_cmd   = phi_d   # hold current actual angle at handoff
+                self.rc_theta_cmd = theta_d
+                print(f"[pid_vtol] RC override: ACTIVE  (phi={phi_d:.1f}° theta={theta_d:.1f}°)")
                 self.send_status("rc_override", "ACTIVE", "info")
             elif not rc_active and self.prev_rc_active:
                 print(f"[pid_vtol] RC override: DROPPED — falling back to AUTO")
                 self.send_status("rc_override", "DROPPED - falling back to AUTO", "error")
             self.prev_rc_active = rc_active
-            
+
             sp = self.get_setpoint(t)
 
             if rc_active:
                 rc_roll, rc_pitch, rc_yaw, rc_thr = self.rc_axes
-                
+
                 # Apply deadbands
                 db = 0.05
-                rc_yaw = 0.0 if abs(rc_yaw) < db else rc_yaw
-                rc_thr = 0.0 if abs(rc_thr) < db else rc_thr
-                rc_roll = 0.0 if abs(rc_roll) < db else rc_roll
+                rc_yaw   = 0.0 if abs(rc_yaw)   < db else rc_yaw
+                rc_thr   = 0.0 if abs(rc_thr)   < db else rc_thr
+                rc_roll  = 0.0 if abs(rc_roll)  < db else rc_roll
                 rc_pitch = 0.0 if abs(rc_pitch) < db else rc_pitch
-                
-                # Yaw stick -> integrate heading (45 deg/s)
+
+                # --- RATE MODE for roll/pitch ---
+                # Stick commands angular RATE (deg/s). Centered stick = hold angle.
+                # This prevents the instant 0° snap that caused crashes in position mode.
+                RC_ROLL_RATE  = 45.0   # max deg/s at full stick
+                RC_PITCH_RATE = 35.0   # max deg/s at full stick
+                RC_MAX_ROLL   = 30.0   # hard clamp on commanded roll
+                RC_MAX_PITCH  = 20.0   # hard clamp on commanded pitch
+                self.rc_phi_cmd   = clamp(
+                    self.rc_phi_cmd   + rc_roll  * RC_ROLL_RATE  * dt_loop,
+                    -RC_MAX_ROLL, RC_MAX_ROLL)
+                self.rc_theta_cmd = clamp(
+                    self.rc_theta_cmd + rc_pitch * RC_PITCH_RATE * dt_loop,
+                    -RC_MAX_PITCH, RC_MAX_PITCH)
+
+                # Yaw stick → integrate heading (45 deg/s)
                 self.rc_heading_cmd += rc_yaw * 45.0 * dt_loop
-                
-                # Throttle stick -> integrate altitude (15 ft/s)
-                # Usually stick down is positive Y on gamepad (so push up -> negative thr)
-                # So if rc_thr is negative (stick UP), we want to climb (positive alt rate).
+
+                # Throttle stick → integrate altitude (15 ft/s climb rate)
                 self.rc_alt_cmd += -rc_thr * 15.0 * dt_loop
-                
-                phi_cmd_sched = rc_roll * 30.0    # Max 30 deg roll
-                theta_cmd_sched = rc_pitch * 30.0 # Max 30 deg pitch
-                alt_cmd_sched = self.rc_alt_cmd
+
+                phi_cmd_sched   = self.rc_phi_cmd
+                theta_cmd_sched = self.rc_theta_cmd
+                alt_cmd_sched   = self.rc_alt_cmd
                 self.heading_hold = self.rc_heading_cmd
                 u_cmd_sched = 0.0
-                
+
                 # Disable warmup blend in RC mode
                 blend = 1.0
             else:
@@ -531,10 +545,12 @@ class VTOLController:
                 theta_cmd_sched = sp["theta_deg"]
                 alt_cmd_sched   = sp["alt_ft"]
                 u_cmd_sched     = sp.get("u_ft_s", 0.0)
-                
-                # Sync RC internal states so bump-less transfer
-                self.rc_alt_cmd = alt_cmd_sched
+
+                # Sync RC internal states for bumpless transfer back to RC
+                self.rc_alt_cmd     = alt_cmd_sched
                 self.rc_heading_cmd = self.heading_hold
+                self.rc_phi_cmd     = phi_cmd_sched   # hold auto setpoint angle
+                self.rc_theta_cmd   = theta_cmd_sched
 
                 # Warmup blend: hold initial state, then ease into the scheduled setpoint.
                 if self.warmup_seconds > 0:
@@ -553,6 +569,23 @@ class VTOLController:
             theta_cmd_base = (1-blend) * self.initial_theta + blend * theta_cmd_sched
             alt_cmd        = (1-blend) * self.initial_alt   + blend * alt_cmd_sched
             u_cmd          = (1-blend) * self.initial_u     + blend * u_cmd_sched
+
+            # === GROUND IDLE — pre-takeoff state ===
+            # If we're on the ground AND the schedule isn't commanding us up yet,
+            # idle motors at min spin and reset altitude integrators to prevent windup.
+            TAKEOFF_ALT_THRESHOLD_FT = 2.0
+            if on_ground and alt_cmd < TAKEOFF_ALT_THRESHOLD_FT:
+                # Reset all PID integrators so they don't wind up against the ground
+                self.pid_alt.reset()
+                self.pid_climb.reset()
+                # Send idle motor commands and skip the rest of the control loop
+                idle_thr = 0.05   # just enough to spin props, not enough to lift
+                self.send_controls(
+                    self.trim_ail, self.trim_ele, self.trim_rud,
+                    idle_thr, idle_thr, idle_thr, idle_thr,
+                    self.base_flaps, self.base_flaps
+                )
+                continue
 
             # === U-VELOCITY LOOP ===
             # Tilted fwd motors push the vehicle forward. To hold u_cmd, we nudge
@@ -581,68 +614,51 @@ class VTOLController:
             q_cmd = self.pid_pitch_att.update(theta_err, t)
             pitch_diff = self.pid_pitch_rate.update(q_cmd - q_d, t)
 
-            # === YAW — FULL CASCADE through FLAPS ===
-            #
-            # After 5 test iterations, data proved:
-            #   - Differential throttle creates NO yaw torque (MAVRIK ignores Cl polynomial)
-            #   - Differential flaps ARE the yaw actuator (vectored tilt)
-            #   - Previous proportional-only flaps control caused limit-cycle oscillation
-            #
-            # FIX: Route the full cascade PID through flaps:
-            #   Outer: heading error → attitude PID → rate command
-            #   Inner: rate error → rate PID → differential flaps
-            #
-            # This gives rate damping to the flaps actuator, preventing overshoot.
+            # === YAW — NEW ARCHITECTURE ===
+            # Arms tilt (flaps) is SLOW, so it belongs in the outer loop (heading error directly drives tilt).
+            # Differential yaw thrust is FAST, so it belongs in the inner loop (rate damping).
             #
             if self.yaw_loop_enabled:
                 psi_err = wrap_angle((psi_cmd - psi_d) * DEG2RAD) * RAD2DEG
 
-                # Outer loop: heading error → rate command (deg/s)
-                r_cmd_d = self.pid_yaw_att.update(psi_err, t)
+                # Outer loop: heading error → arms tilt (differential flaps)
+                # Negate error so positive psi_err produces positive psi rate
+                # (physical inversion: positive flaps diff → negative psi rate in MAVRIK)
+                yaw_diff_flaps = self.pid_yaw_att.update(-psi_err, t) * self.yaw_flaps_gain
 
-                # Inner loop: rate error → differential flaps
+                # Inner loop: rate error → differential yaw thrust
+                # Positive psi_err → want positive r (nose turning right)
+                r_cmd_d = clamp(psi_err * 2.0, -30.0, 30.0)
+
                 r_err = r_cmd_d - r_d
-                yaw_diff_flaps = self.pid_yaw_rate.update(r_err, t) * self.yaw_flaps_gain
+                yaw_thr_diff = self.pid_yaw_rate.update(r_err, t) * self.yaw_throttle_gain
 
-                # Differential throttle: disabled (MAVRIK doesn't simulate Cq)
-                # Set throttle_gain=0 in gains file, or small value for future use
-                yaw_thr_diff = 0.0
             else:
                 r_cmd_d = 0.0
                 yaw_diff_flaps = 0.0
                 yaw_thr_diff = 0.0
 
-            # === ASYMMETRIC MIXER ===
+            # === SYMMETRIC MIXER ===
             #
             # collective: moves all motors together (up/down)
-            #   thrFR/L += collective_delta
-            #   thrAR/L += collective_delta
-            #
-            # pitch_diff > 0: nose UP. Achieved by ADDING to fwd, SUBTRACTING from aft.
-            #   To keep total lift unchanged, the aft adjustment is scaled by lift_balance:
-            #     fwd_extra_lift = +pitch_diff * fwd_T0 * fwd_vert_frac
-            #     aft_lift_change_needed = -fwd_extra_lift  (so total stays the same)
-            #     aft_throttle_change = aft_lift_change_needed / (aft_T0 * 1.0)
-            #                         = -pitch_diff * fwd_vert_frac
-            #     => aft delta = -pitch_diff * lift_balance
-            #
+            # pitch_diff > 0: nose UP. Add to fwd, subtract from aft.
             # roll_diff > 0: roll RIGHT. Add to LEFT motors, subtract from RIGHT.
+            
             pitch_fwd =  pitch_diff
-            pitch_aft = -pitch_diff * self.lift_balance
+            pitch_aft = -pitch_diff
 
-            base_fwd = self.trim_fwd + collective_delta
-            base_aft = self.trim_aft + collective_delta
+            base = self.trim_throttle + collective_delta
 
-            thrFR_raw = base_fwd + pitch_fwd - roll_diff + yaw_thr_diff   # Motor 1 CCW: + for yaw right
-            thrFL_raw = base_fwd + pitch_fwd + roll_diff - yaw_thr_diff   # Motor 2 CW:  - for yaw right
-            thrAR_raw = base_aft + pitch_aft - roll_diff - yaw_thr_diff   # Motor 3 CW:  - for yaw right
-            thrAL_raw = base_aft + pitch_aft + roll_diff + yaw_thr_diff   # Motor 4 CCW: + for yaw right
+            thrFR_raw = base + pitch_fwd - roll_diff + yaw_thr_diff   # Motor 1 CCW: + for yaw right
+            thrFL_raw = base + pitch_fwd + roll_diff - yaw_thr_diff   # Motor 2 CW:  - for yaw right
+            thrAR_raw = base + pitch_aft - roll_diff - yaw_thr_diff   # Motor 3 CW:  - for yaw right
+            thrAL_raw = base + pitch_aft + roll_diff + yaw_thr_diff   # Motor 4 CCW: + for yaw right
 
             # === RAMP-IN: blend toward pure trim during the first few seconds ===
-            thrFR_ramped = ramp * thrFR_raw + (1 - ramp) * self.trim_fwd
-            thrFL_ramped = ramp * thrFL_raw + (1 - ramp) * self.trim_fwd
-            thrAR_ramped = ramp * thrAR_raw + (1 - ramp) * self.trim_aft
-            thrAL_ramped = ramp * thrAL_raw + (1 - ramp) * self.trim_aft
+            thrFR_ramped = ramp * thrFR_raw + (1 - ramp) * self.trim_throttle
+            thrFL_ramped = ramp * thrFL_raw + (1 - ramp) * self.trim_throttle
+            thrAR_ramped = ramp * thrAR_raw + (1 - ramp) * self.trim_throttle
+            thrAL_ramped = ramp * thrAL_raw + (1 - ramp) * self.trim_throttle
 
             # === CLAMP + RATE-LIMIT ===
             thrFR_cmd = self.rate_limit(clamp(thrFR_ramped, 0, 1), self.last_thr[0], self.max_thr_step)
@@ -651,16 +667,27 @@ class VTOLController:
             thrAL_cmd = self.rate_limit(clamp(thrAL_ramped, 0, 1), self.last_thr[3], self.max_thr_step)
             self.last_thr = [thrFR_cmd, thrFL_cmd, thrAR_cmd, thrAL_cmd]
 
-            rudder_raw = clamp(self.trim_rud, -15, 15)  # rudder at trim (no authority in hover)
+            # === BLENDED AERO-PROPULSIVE CONTROL ===
+            # Slave the aerodynamic surfaces to the motor PIDs to fight high-speed aerodynamic disturbances.
+            # Elevator gain is 40.0 (~3.2 deg max) to prevent pitch limit cycles.
+            # Aileron/Rudder gains are 180.0 (~14.4 deg max) to fight spiral divergence.
+            
+            # Pitch: Positive pitch_diff means nose UP. We need negative elevator (trailing edge UP) to push tail DOWN.
+            elevator = clamp(self.trim_ele - (pitch_diff * 40.0), -15, 15)
+            
+            # Roll: Positive roll_diff means right roll. Positive aileron typically creates right roll.
+            aileron = clamp(self.trim_ail + (roll_diff * 180.0), -15, 15)
+            
+            # Yaw: Positive yaw_thr_diff means yaw RIGHT. Positive rudder means yaw LEFT.
+            rudder_raw = clamp(self.trim_rud - (yaw_thr_diff * 180.0), -15, 15)
             rudder_cmd = self.rate_limit(rudder_raw, self.last_rud, self.max_surf_step)
             self.last_rud = rudder_cmd
 
-            aileron  = clamp(self.trim_ail, -15, 15)
-            elevator = clamp(self.trim_ele, -15, 15)
-
             # === DIFFERENTIAL FLAPS FOR YAW ===
-            flapsR_cmd = clamp(self.base_flaps + ramp * yaw_diff_flaps, 0, 1)
-            flapsL_cmd = clamp(self.base_flaps - ramp * yaw_diff_flaps, 0, 1)
+            # flapsR > flapsL produces NEGATIVE psi rate in MAVRIK (physical inversion).
+            # We correct by negating yaw_diff_flaps before applying.
+            flapsR_cmd = clamp(self.base_flaps - ramp * yaw_diff_flaps, 0, 1)
+            flapsL_cmd = clamp(self.base_flaps + ramp * yaw_diff_flaps, 0, 1)
 
             # === SEND ===
             self.send_controls(aileron, elevator, rudder_cmd,

@@ -20,12 +20,14 @@ Protocol reference:
 
 MVP scope:
     - Frame: ArduCopter quad. Only PWM channels 1-4 are consumed.
-    - Tilt: held at flaps=0.99 (fwd motors near-vertical, with known drift).
+    - Tilt: held at flaps=1.0 (motors exactly vertical, zero horizontal drift).
+              Arms can go past 90deg; clamp is 1.1 for yaw authority.
     - Servos: aileron/elevator/rudder held at 0.
     - Accel: finite-differenced body velocity minus gravity-in-body.
 """
 
 import argparse
+import csv
 import json as json_lib
 import math
 import os
@@ -153,7 +155,13 @@ class PWMMapper:
         aileron, elevator, rudder, thrFR, thrFL, thrAR, thrAL, flapsRight, flapsLeft
     """
 
-    def __init__(self, flaps_fixed: float = 0.99,
+    # Trim computed from Team1_VTOL.json mass properties:
+    #   CG_x = -0.114 ft, fwd arm = 1.854 ft, aft arm = 1.778 ft
+    #   T_fwd = 39.06 lbf (0.394), T_aft = 40.72 lbf (0.410)
+    HOVER_THR_FWD = 0.394
+    HOVER_THR_AFT = 0.410
+
+    def __init__(self, flaps_fixed: float = 1.0,
                  aileron_channel: Optional[int] = None,
                  elevator_channel: Optional[int] = None,
                  rudder_channel: Optional[int] = None):
@@ -161,25 +169,125 @@ class PWMMapper:
         self.aileron_channel = aileron_channel
         self.elevator_channel = elevator_channel
         self.rudder_channel = rudder_channel
+        self.has_armed = False
+        self.last_pwm = [1000, 1000, 1000, 1000]   # for diagnostics
+        self.last_controls = (0.0,) * 9              # for diagnostics
+        # State feedback for pre-arm stabilization
+        self._pitch = 0.0   # radians
+        self._roll = 0.0    # radians
+        self._yaw = 0.0     # radians
+        self._q = 0.0       # pitch rate rad/s
+        self._p = 0.0       # roll rate rad/s
+        self._r = 0.0       # yaw rate rad/s
+        self._u = 0.0       # forward body velocity ft/s
+        self._v = 0.0       # lateral body velocity ft/s
+        self._pitch_integ = 0.0
+        self._roll_integ  = 0.0
+        self._vel_pitch_integ = 0.0  # velocity PI: integrates u error to find trim pitch
+        self._vel_roll_integ  = 0.0  # velocity PI: integrates v error to find trim roll
+
+    def set_state(self, pitch_rad: float, roll_rad: float, yaw_rad: float,
+                  q_rad_s: float, p_rad_s: float, r_rad_s: float):
+        """Called each tick with latest MAVRIK attitude for pre-arm stabilization."""
+        self._pitch = pitch_rad
+        self._roll = roll_rad
+        self._yaw = yaw_rad
+        self._q = q_rad_s
+        self._p = p_rad_s
+        self._r = r_rad_s
+
+    def set_velocity(self, u_fps: float, v_fps: float):
+        """Feed forward velocity so pre-arm loop can damp out horizontal drift."""
+        self._u = u_fps
+        self._v = v_fps
 
     def map(self, pwm: List[int]) -> Tuple[float, ...]:
         # Pad to at least 8 channels with midpoints
         while len(pwm) < 8:
             pwm.append(PWM_MID)
 
+        self.last_pwm = list(pwm[:4])
+
+        # Pre-arm hover hold: MAVRIK starts at 250ft and has no ground collision.
+        # The vehicle is statically unstable in pitch, so we need active
+        # stabilization (P+D on pitch & roll) to keep it level while ArduPilot
+        # initializes its EKF.
+        if not self.has_armed:
+            if any(p > 1200 for p in pwm[:4]):
+                self.has_armed = True
+                print("\n  [Bridge] ArduPilot commanded thrust > 1200us. Handing over control!\n")
+            else:
+                # --- Simple P+D attitude hold ---
+                # With flaps_fixed=1.0 (motors perfectly vertical), there is no
+                # horizontal thrust component, so holding 0deg pitch = zero drift.
+                KP_PITCH = 0.20
+                KD_PITCH = 0.04
+                KP_ROLL  = 0.10
+                KD_ROLL  = 0.02
+                KP_YAW   = 0.15
+                KD_YAW   = 0.05
+
+                pitch_corr = -KP_PITCH * self._pitch - KD_PITCH * self._q
+                roll_corr  = -KP_ROLL  * self._roll  - KD_ROLL  * self._p
+                yaw_corr   = -KP_YAW   * self._yaw   - KD_YAW   * self._r
+
+                # pitch_corr > 0 means "need more nose-down" → increase fwd, decrease aft
+                thr_fr = max(0.0, min(1.0, self.HOVER_THR_FWD + pitch_corr - roll_corr))
+                thr_fl = max(0.0, min(1.0, self.HOVER_THR_FWD + pitch_corr + roll_corr))
+                thr_ar = max(0.0, min(1.0, self.HOVER_THR_AFT - pitch_corr - roll_corr))
+                thr_al = max(0.0, min(1.0, self.HOVER_THR_AFT - pitch_corr + roll_corr))
+
+                # Arms can go past 90deg (flaps > 1.0)
+                flaps_r = max(0.0, min(1.1, self.flaps_fixed + yaw_corr))
+                flaps_l = max(0.0, min(1.1, self.flaps_fixed - yaw_corr))
+
+                ctrl = (0.0, 0.0, 0.0,
+                        thr_fr, thr_fl, thr_ar, thr_al,
+                        flaps_r, flaps_l)
+                self.last_controls = ctrl
+                return ctrl
+
         # MAVRIK's 4 motors from ArduCopter's 4 motors, quad-X layout
-        thr_fr = pwm_to_normalized(pwm[0])  # CH1 -> front-right
-        thr_al = pwm_to_normalized(pwm[1])  # CH2 -> rear-left (aft-left)
-        thr_fl = pwm_to_normalized(pwm[2])  # CH3 -> front-left
-        thr_ar = pwm_to_normalized(pwm[3])  # CH4 -> rear-right (aft-right)
+        # ArduPilot outputs a "collective" thrust level that is symmetric.
+        # We extract the collective and differential components separately so
+        # we can layer the CG-compensation bias on top.
+        raw_fr = pwm_to_normalized(pwm[0])  # CH1 -> front-right
+        raw_al = pwm_to_normalized(pwm[1])  # CH2 -> rear-left (aft-left)
+        raw_fl = pwm_to_normalized(pwm[2])  # CH3 -> front-left
+        raw_ar = pwm_to_normalized(pwm[3])  # CH4 -> rear-right (aft-right)
+
+        # Collective thrust (0..1) from ArduPilot
+        collective = (raw_fr + raw_al + raw_fl + raw_ar) / 4.0
+
+        # Differential corrections ArduPilot is requesting (relative to collective)
+        diff_fr = raw_fr - collective
+        diff_al = raw_al - collective
+        diff_fl = raw_fl - collective
+        diff_ar = raw_ar - collective
+
+        # Apply CG-compensation bias + ArduPilot's differential corrections.
+        # The MAVRIK airframe has a forward CG, so forward motors need more thrust
+        # than aft motors to maintain level hover. We always keep this bias active.
+        thr_fr = max(0.0, min(1.0, collective * self.HOVER_THR_FWD / 0.402 + diff_fr))
+        thr_fl = max(0.0, min(1.0, collective * self.HOVER_THR_FWD / 0.402 + diff_fl))
+        thr_ar = max(0.0, min(1.0, collective * self.HOVER_THR_AFT / 0.402 + diff_ar))
+        thr_al = max(0.0, min(1.0, collective * self.HOVER_THR_AFT / 0.402 + diff_al))
+
+        # Extract yaw demand from ArduPilot's quad-X mixer for differential tilt.
+        # Arms can go past 90deg (flaps > 1.0), allow up to 1.1 (~99deg)
+        yaw_diff = (raw_fr + raw_ar - raw_fl - raw_al) / 4.0
+        flaps_r = max(0.0, min(1.1, self.flaps_fixed + yaw_diff * 2.0))
+        flaps_l = max(0.0, min(1.1, self.flaps_fixed - yaw_diff * 2.0))
 
         aileron  = pwm_to_symmetric(pwm[self.aileron_channel - 1])  * 15.0 if self.aileron_channel  else 0.0
         elevator = pwm_to_symmetric(pwm[self.elevator_channel - 1]) * 15.0 if self.elevator_channel else 0.0
         rudder   = pwm_to_symmetric(pwm[self.rudder_channel - 1])   * 15.0 if self.rudder_channel   else 0.0
 
         # MAVRIK packet order: aileron, elevator, rudder, thrFR, thrFL, thrAR, thrAL, flapsRight, flapsLeft
-        return (aileron, elevator, rudder, thr_fr, thr_fl, thr_ar, thr_al,
-                self.flaps_fixed, self.flaps_fixed)
+        ctrl = (aileron, elevator, rudder, thr_fr, thr_fl, thr_ar, thr_al,
+                flaps_r, flaps_l)
+        self.last_controls = ctrl
+        return ctrl
 
 
 # ---------------------------------------------------------------------------
@@ -191,7 +299,7 @@ class ArduPilotBackend:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.bind((bind_ip, port))
-        self.sock.settimeout(0.05)       # short block so we can still tick timers
+        self.sock.settimeout(0.005)       # short block so we can poll MAVRIK states rapidly
         self.last_reply_addr: Optional[Tuple[str, int]] = None
         self.last_frame_count: int = -1
         self.frames_rx = 0
@@ -315,16 +423,32 @@ class StateToJSON:
             # Bootstrap: assume static, only gravity
             return (-g_body[0], -g_body[1], -g_body[2])
 
-        dt = s.t - self.prev_state.t
+        dt = max(s.t - self.prev_state.t, 0.005)
         u_prev, v_prev, w_prev = self.prev_state.u, self.prev_state.v, self.prev_state.w
         du = (s.u - u_prev) * FT_TO_M / dt
         dv = (s.v - v_prev) * FT_TO_M / dt
         dw = (s.w - w_prev) * FT_TO_M / dt
+        
+        # Apply a low-pass filter to prevent massive dV/dt noise from confusing ArduPilot's EKF
+        alpha = 0.2
+        if not hasattr(self, '_last_du'):
+            self._last_du, self._last_dv, self._last_dw = du, dv, dw
+        else:
+            du = alpha * du + (1.0 - alpha) * self._last_du
+            dv = alpha * dv + (1.0 - alpha) * self._last_dv
+            dw = alpha * dw + (1.0 - alpha) * self._last_dw
+            self._last_du, self._last_dv, self._last_dw = du, dv, dw
+
+        u_ms, v_ms, w_ms = s.u * FT_TO_M, s.v * FT_TO_M, s.w * FT_TO_M
+        du += (s.q * w_ms - s.r * v_ms)
+        dv += (s.r * u_ms - s.p * w_ms)
+        dw += (s.p * v_ms - s.q * u_ms)
+
         self.prev_state = s
-        # specific force = dv_body/dt - g_body
+        # specific force = dv_body/dt + omega x v - g_body
         return (du - g_body[0], dv - g_body[1], dw - g_body[2])
 
-    def build(self, s: MavrikState) -> dict:
+    def build(self, s: MavrikState, override_t: Optional[float] = None) -> dict:
         q = (s.e0, s.ex, s.ey, s.ez)
         roll, pitch, yaw = quat_to_euler(*q)
 
@@ -338,8 +462,10 @@ class StateToJSON:
         # accel
         ax, ay, az = self._accel_body(s)
 
+        t_out = override_t if override_t is not None else s.t
+
         return {
-            "timestamp": s.t,
+            "timestamp": t_out,
             "imu": {
                 "gyro":       [s.p, s.q, s.r],
                 "accel_body": [ax, ay, az],
@@ -362,7 +488,7 @@ DEFAULT_CONFIG = {
         "control_port": 5006
     },
     "pwm_mapping": {
-        "flaps_fixed": 0.99,
+        "flaps_fixed": 1.0,
         "aileron_channel":  None,
         "elevator_channel": None,
         "rudder_channel":   None,
@@ -380,6 +506,41 @@ def load_config(path: str) -> dict:
         return DEFAULT_CONFIG
     with open(path, "r") as f:
         return json_lib.load(f)
+
+
+# ---------------------------------------------------------------------------
+# MAVLink RC_CHANNELS_OVERRIDE builder (no external dependencies)
+# ---------------------------------------------------------------------------
+
+def _x25crc(data: bytes) -> int:
+    crc = 0xFFFF
+    for b in data:
+        tmp = b ^ (crc & 0xFF)
+        tmp ^= (tmp << 4) & 0xFF
+        crc = ((crc >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4)) & 0xFFFF
+    return crc
+
+_rc_seq = 0
+
+def build_rc_override_pkt(channels_pwm: list) -> bytes:
+    """Build a MAVLink v1 RC_CHANNELS_OVERRIDE packet for ArduPilot.
+    channels_pwm: list of up to 8 PWM values (1000-2000), 0 = don't override.
+    """
+    global _rc_seq
+    import struct
+    # Pad to exactly 8 channels
+    pwm = list(channels_pwm[:8])
+    while len(pwm) < 8:
+        pwm.append(0)
+    target_sys, target_comp = 1, 1
+    payload = struct.pack('<BBHHHHHHHH', target_sys, target_comp, *pwm)
+    msg_id  = 70    # RC_CHANNELS_OVERRIDE
+    crc_extra = 124  # MAVLink-defined for msg_id 70
+    seq = _rc_seq & 0xFF
+    _rc_seq += 1
+    header = bytes([len(payload), seq, 255, 0, msg_id])  # len, seq, sysid=GCS, compid, msgid
+    crc = _x25crc(header + payload + bytes([crc_extra]))
+    return b'\xFE' + header + payload + struct.pack('<H', crc)
 
 
 # ---------------------------------------------------------------------------
@@ -417,46 +578,139 @@ def run(config_path: str):
     running = {"ok": True}
     signal.signal(signal.SIGINT, lambda *_: running.__setitem__("ok", False))
 
+    # --- Port 5012: receive RC override from web viewer ---
+    rc_rx_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    rc_rx_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    rc_rx_sock.bind(('0.0.0.0', 5012))
+    rc_rx_sock.setblocking(False)
+    # Send MAVLink to ArduPilot's GCS MAVLink port (SITL default: 14550)
+    mavlink_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    print("  RC override (in):             udp://*:5012  (from web viewer)")
+    print("  RC override (out):            MAVLink RC_CHANNELS_OVERRIDE → 127.0.0.1:14550")
+    print()
     latest_state: Optional[MavrikState] = None
-    print_interval = 1.0 / max(0.1, cfg.get("status_print_hz", 2.0))
+    print_interval = 1.0 / max(0.1, cfg.get("status_print_hz", 10.0))
     next_print = time.time() + print_interval
+
+    # --- CSV diagnostic log ---
+    log_path = "bridge_diag.csv"
+    log_file = open(log_path, "w", newline="")
+    log_writer = csv.writer(log_file)
+    log_writer.writerow([
+        "wall_clock", "sim_t",
+        "alt_ft", "roll_deg", "pitch_deg", "yaw_deg",
+        "u_fps", "v_fps", "w_fps", "p_rads", "q_rads", "r_rads",
+        "pwm1", "pwm2", "pwm3", "pwm4",
+        "ail", "ele", "rud",
+        "thrFR", "thrFL", "thrAR", "thrAL",
+        "flapsR", "flapsL",
+        "armed",
+    ])
+    log_hz = 50  # write at most 50 rows/sec
+    log_interval = 1.0 / log_hz
+    next_log = time.time()
+    print(f"  Diagnostic log:  {os.path.abspath(log_path)}")
+    print()
 
     while running["ok"]:
         # Drain any MAVRIK state packets regardless of whether ArduPilot is active
         s = mx.poll_latest_state()
         if s is not None:
             latest_state = s
+            # Feed attitude to the mapper for pre-arm stabilization
+            roll, pitch, yaw = quat_to_euler(s.e0, s.ex, s.ey, s.ez)
+            pwm_map.set_state(pitch, roll, yaw, s.q, s.p, s.r)
+            # Feed velocity so the pre-arm loop can damp horizontal drift
+            pwm_map.set_velocity(s.u, s.v)
 
         # Wait (up to 50ms) for a PWM frame from ArduPilot
         frame = ap.recv_pwm()
 
         if frame is not None:
-            # Forward controls to MAVRIK
             controls = pwm_map.map(frame.pwm)
             mx.send_controls(controls)
+        elif not pwm_map.has_armed:
+            controls = pwm_map.map([1000, 1000, 1000, 1000])
+            mx.send_controls(controls)
 
-            # Reply with current state as JSON
-            if latest_state is not None:
-                payload = to_json.build(latest_state)
-                ap.send_json(payload)
+        # Send state back to ArduPilot natively at 100Hz (when MAVRIK updates).
+        # We've configured ArduCopter to natively accept 100Hz via SCHED_LOOP_RATE 
+        # and INS_GYRO_RATE, so we don't need to artificially interpolate an 800Hz clock.
+        if s is not None and ap.last_reply_addr is not None:
+            payload = to_json.build(latest_state)
+            ap.send_json(payload)
 
         now = time.time()
+
+        # --- CSV log ---
+        if now >= next_log and latest_state is not None:
+            next_log = now + log_interval
+            ls = latest_state
+            r, p, y = quat_to_euler(ls.e0, ls.ex, ls.ey, ls.ez)
+            c = pwm_map.last_controls
+            pw = pwm_map.last_pwm
+            log_writer.writerow([
+                f"{now:.3f}", f"{ls.t:.4f}",
+                f"{-ls.zf:.1f}", f"{math.degrees(r):.2f}", f"{math.degrees(p):.2f}", f"{math.degrees(y):.2f}",
+                f"{ls.u:.2f}", f"{ls.v:.2f}", f"{ls.w:.2f}",
+                f"{ls.p:.4f}", f"{ls.q:.4f}", f"{ls.r:.4f}",
+                pw[0], pw[1], pw[2], pw[3],
+                f"{c[0]:.3f}", f"{c[1]:.3f}", f"{c[2]:.3f}",
+                f"{c[3]:.4f}", f"{c[4]:.4f}", f"{c[5]:.4f}", f"{c[6]:.4f}",
+                f"{c[7]:.4f}", f"{c[8]:.4f}",
+                1 if pwm_map.has_armed else 0,
+            ])
+            log_file.flush()
+
+        # --- RC override from web viewer (port 5012) → MAVLink to ArduPilot ---
+        # SAFETY: only forward when at least one axis is outside the deadband.
+        # A centered/resting gamepad won't command zero throttle and crash.
+        RC_DEADBAND = 0.05
+        try:
+            rc_data, _ = rc_rx_sock.recvfrom(64)
+            if len(rc_data) >= 16:
+                roll_n, pitch_n, yaw_n, thr_n = struct.unpack('<4f', rc_data[:16])
+                # All axes: center=0 → PWM 1500 (hover/neutral).
+                # OLD _thr mapped 0 → 1000 (zero thrust) which caused crashes.
+                def _norm(v): return int(max(1000, min(2000, 1500 + v * 500)))
+                active = (abs(roll_n) > RC_DEADBAND or abs(pitch_n) > RC_DEADBAND or
+                          abs(yaw_n)  > RC_DEADBAND or abs(thr_n)  > RC_DEADBAND)
+                if active:
+                    # CH1=roll  CH2=pitch  CH3=throttle  CH4=yaw
+                    channels = [_norm(roll_n), _norm(pitch_n), _norm(thr_n), _norm(yaw_n), 0, 0, 0, 0]
+                    pkt = build_rc_override_pkt(channels)
+                    mavlink_sock.sendto(pkt, ('127.0.0.1', 14550))
+        except BlockingIOError:
+            pass
+        except Exception:
+            pass
+
+        # --- Console status ---
         if now >= next_print:
             next_print = now + print_interval
+            pw = pwm_map.last_pwm
+            c = pwm_map.last_controls
+            armed_str = "ARMED" if pwm_map.has_armed else "PRE-ARM"
             if latest_state is None:
-                print(f"  [waiting for MAVRIK state]  "
-                      f"ap_frames={ap.frames_rx}  mavrik_states={mx.states_rx}")
+                print(f"  [{armed_str}] [waiting for MAVRIK]  "
+                      f"pwm=[{pw[0]},{pw[1]},{pw[2]},{pw[3]}]  "
+                      f"ap_rx={ap.frames_rx}  mavrik_rx={mx.states_rx}")
             else:
                 r, p, y = quat_to_euler(latest_state.e0, latest_state.ex,
                                         latest_state.ey, latest_state.ez)
                 alt_ft = -latest_state.zf
-                print(f"  t={latest_state.t:7.2f}s  "
-                      f"alt={alt_ft:6.0f}ft  "
-                      f"roll={math.degrees(r):+6.1f}  pitch={math.degrees(p):+6.1f}  "
-                      f"ap_rx={ap.frames_rx}  json_tx={ap.json_sent}  "
-                      f"mavrik_rx={mx.states_rx}  ctrl_tx={mx.controls_tx}  "
-                      f"ap_skipped={ap.frames_skipped}")
+                u_fps  = latest_state.u
+                # Pre-arm drift warning
+                if not pwm_map.has_armed and abs(u_fps) > 5.0:
+                    print(f"\033[91m  *** DRIFT WARNING: u={u_fps:+.1f} ft/s — ARM NOW or restart! ***\033[0m")
+                print(f"  [{armed_str}] t={latest_state.t:6.1f}s  "
+                      f"alt={alt_ft:5.0f}ft  "
+                      f"R={math.degrees(r):+5.1f} P={math.degrees(p):+5.1f} Y={math.degrees(y):+5.1f}  "
+                      f"u={u_fps:+5.1f}fps  "
+                      f"pwm=[{pw[0]},{pw[1]},{pw[2]},{pw[3]}]  "
+                      f"flp=[{c[7]:.3f},{c[8]:.3f}]")
 
+    log_file.close()
     ap.close()
     mx.close()
     print("\n  Bridge stopped.")
@@ -464,6 +718,7 @@ def run(config_path: str):
     print(f"  MAVRIK states rx:    {mx.states_rx}")
     print(f"  MAVRIK controls tx:  {mx.controls_tx}")
     print(f"  ArduPilot JSON tx:   {ap.json_sent}")
+    print(f"  Diagnostic log:     {os.path.abspath(log_path)}")
 
 
 def main():
