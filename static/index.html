@@ -18,11 +18,11 @@
                 <span id="gcs-armed-label" class="state-disarmed" title="SPACE=Arm | SHIFT+SPACE=Disarm">DISARMED</span>
                 &nbsp;|
                 <select id="mode-select" title="Select mode, then press Enter or click SET">
-                    <option value="0">Stabilize</option>
-                    <option value="2">AltHold</option>
-                    <option value="5">Loiter</option>
-                    <option value="6">RTL</option>
-                    <option value="9">Land</option>
+                    <option value="17">QHover</option>
+                    <option value="18">QLoiter</option>
+                    <option value="24">QStabilize</option>
+                    <option value="0">Manual</option>
+                    <option value="5">FBWA</option>
                 </select>
                 <button onclick="sendMode()" class="mode-btn" style="padding:2px 8px; font-size:11px;">SET</button>
                 &nbsp;|
@@ -88,9 +88,9 @@
                 <div id="rc-status" style="color: #ff4444;">No Gamepad Detected</div>
                 <label>Roll CH: <input type="number" id="ax-roll" value="0"> <input type="checkbox" id="inv-roll"> Inv <input type="number" id="sc-roll" value="1.0" step="0.1" title="Scale (multiplier)"></label><br>
                 <label>Pitch CH: <input type="number" id="ax-pitch" value="1"> <input type="checkbox" id="inv-pitch" checked> Inv <input type="number" id="sc-pitch" value="1.0" step="0.1" title="Scale (multiplier)"></label><br>
-                <label>Thr CH: <input type="number" id="ax-thr" value="2"> <input type="checkbox" id="inv-thr"> Inv <input type="number" id="sc-thr" value="1.0" step="0.1" title="Scale (multiplier)"></label><br>
+                <label>Thr CH: <input type="number" id="ax-thr" value="2"> <input type="checkbox" id="inv-thr" checked> Inv <input type="number" id="sc-thr" value="1.0" step="0.1" title="Scale (multiplier)"></label><br>
                 <label>Yaw CH: <input type="number" id="ax-yaw" value="3"> <input type="checkbox" id="inv-yaw"> Inv <input type="number" id="sc-yaw" value="1.0" step="0.1" title="Scale (multiplier)"></label><br>
-                <label style="margin-top:10px;display:block;"><input type="checkbox" id="rc-enable"> Enable RC Override</label>
+                <label style="margin-top:10px;display:block;"><input type="checkbox" id="rc-enable" checked> Enable RC Override</label>
                 <label style="display:block;"><input type="checkbox" id="ekf-enable"> Show EKF Ghost</label>
             </div>
 

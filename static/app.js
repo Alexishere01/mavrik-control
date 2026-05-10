@@ -979,7 +979,7 @@ function resetCam() {
 }
 
 // --- GCS ARM / MODE CONTROL ---
-const MODE_NAMES = { 0:'STABILIZE', 2:'ALT_HOLD', 5:'LOITER', 6:'RTL', 9:'LAND' };
+const MODE_NAMES = { 0:'MANUAL', 5:'FBWA', 17:'QSTABILIZE', 18:'QHOVER', 19:'QLOITER', 20:'QLAND', 21:'QRTL' };
 
 window.sendArm = function(arm) {
     if (ws.readyState !== WebSocket.OPEN) { alert('WebSocket not connected.'); return; }

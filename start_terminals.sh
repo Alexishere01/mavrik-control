@@ -6,8 +6,12 @@ DIR="/Users/alex/Library/Containers/com.isaacmarovitz.Whisky/Bottles/37084628-4F
 # Web Viewer (Starts automatically)
 osascript -e "tell application \"Terminal\" to do script \"cd '$DIR' && source venv/bin/activate && python3 mavrik_web_viewer.py\""
 
-# PID Tester (Pre-typed, ready to run after MAVRIK loads)
-osascript -e "tell application \"Terminal\" to do script \"cd '$DIR' && source venv/bin/activate && clear && echo 'Press ENTER to start the PID VTOL test (Make sure MAVRIK is running first!)' && python3 pid_vtol.py\""
+# Pre-arm PID stabilizer — must start BEFORE the bridge so it owns port 5006 during pre-arm.
+# Bridge sends a UDP byte to port 5015 on handover; pid_vtol then exits cleanly.
+osascript -e "tell application \"Terminal\" to do script \"cd '$DIR' && source venv/bin/activate && clear && python3 pid_vtol.py\""
 
-# Optional: Ardupilot Bridge (Pre-typed, but not needed for PID tests)
-osascript -e "tell application \"Terminal\" to do script \"cd '$DIR' && source venv/bin/activate && clear && echo 'NOTE: Do NOT run this while pid_vtol.py is running. They will fight for control!' && python3 mavrik_ardupilot_bridge.py\""
+# Ardupilot Bridge (Starts automatically)
+osascript -e "tell application \"Terminal\" to do script \"cd '$DIR' && source venv/bin/activate && clear && python3 mavrik_ardupilot_bridge.py\""
+
+# Ardupilot SITL (Starts automatically)
+osascript -e "tell application \"Terminal\" to do script \"cd '$DIR' && source venv/bin/activate && clear && echo 'Starting Ardupilot SITL with JSON backend...' && sim_vehicle.py -v ArduPlane -f quadplane --model JSON:127.0.0.1 --add-param-file=mavrik.parm --out udpin:127.0.0.1:14552 --map --console\""

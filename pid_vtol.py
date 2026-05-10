@@ -333,6 +333,12 @@ class VTOLController:
         self.rc_sock.bind(("0.0.0.0", 5012))
         self.rc_sock.setblocking(False)
         self.last_rc_t = -10.0
+
+        # Port 5015: bridge sends a single byte here when it hands control to ArduPilot.
+        self.stop_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.stop_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.stop_sock.bind(("0.0.0.0", 5015))
+        self.stop_sock.setblocking(False)
         self.prev_rc_active = False
         self.rc_axes = (0.0, 0.0, 0.0, 0.0)
         self.rc_alt_cmd = 0.0
@@ -427,13 +433,19 @@ class VTOLController:
 
         dt_loop = 1.0 / self.loop_hz
         last_print = 0.0
+        _cached_ctrl = (0.0, 0.0, 0.0,
+                        self.trim_throttle, self.trim_throttle,
+                        self.trim_throttle, self.trim_throttle,
+                        self.base_flaps, self.base_flaps)
 
         while self.running:
             t0 = time.time()
 
             state = self.read_state()
             if state is None:
-                time.sleep(0.005)
+                # Keep sending cached output so MAVRIK's recvfrom doesn't block forever
+                self.send_controls(*_cached_ctrl)
+                time.sleep(0.0005)
                 continue
 
             t = state[0]
@@ -473,6 +485,15 @@ class VTOLController:
                       f"psi={psi_d:.1f}° alt={alt:.0f} ft  u={u:.1f} fps")
                 print(f"  Holding initial state for {self.warmup_seconds:.1f}s, "
                       f"then blending into schedule.")
+
+            # Check for handover signal from bridge
+            try:
+                self.stop_sock.recvfrom(16)
+                print("\n[pid_vtol] Bridge handover signal received — stopping (ArduPilot now controls).\n")
+                self.running = False
+                break
+            except BlockingIOError:
+                pass
 
             try:
                 while True:
@@ -690,9 +711,10 @@ class VTOLController:
             flapsL_cmd = clamp(self.base_flaps + ramp * yaw_diff_flaps, 0, 1)
 
             # === SEND ===
-            self.send_controls(aileron, elevator, rudder_cmd,
-                               thrFR_cmd, thrFL_cmd, thrAR_cmd, thrAL_cmd,
-                               flapsR_cmd, flapsL_cmd)
+            _cached_ctrl = (aileron, elevator, rudder_cmd,
+                            thrFR_cmd, thrFL_cmd, thrAR_cmd, thrAL_cmd,
+                            flapsR_cmd, flapsL_cmd)
+            self.send_controls(*_cached_ctrl)
 
             # Send Setpoint
             sp_pkt = struct.pack('<7f', t, xf, yf, -alt_cmd, phi_cmd_base, theta_cmd, psi_cmd)
@@ -739,10 +761,13 @@ class VTOLController:
                       f"ydf={yaw_diff_flaps:+.4f}")
                 last_print = t
 
-            elapsed = time.time() - t0
-            sleep = dt_loop - elapsed
-            if sleep > 0:
-                time.sleep(sleep)
+            # Resend last computed output at ~2kHz until next PID tick.
+            # MAVRIK's sim loop blocks on recvfrom(5006) each step — at 50Hz it
+            # would receive only one packet per 40 MAVRIK steps, starving the sim.
+            _next_tick = t0 + dt_loop
+            while time.time() < _next_tick and self.running:
+                self.send_controls(*_cached_ctrl)
+                time.sleep(0.0005)
 
         self.log.close()
         print("\n  Controller stopped. Log saved.")

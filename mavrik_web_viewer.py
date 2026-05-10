@@ -40,9 +40,17 @@ def build_set_mode(custom_mode: int) -> bytes:
     payload = struct.pack('<LBB', custom_mode, 1, 1)  # custom_mode, base_mode=1, target_sys
     return _mav_pkt(11, payload, 89)
 
+def build_rc_override(ch1=0, ch2=0, ch3=0, ch4=0, ch5=0, ch6=0, ch7=0, ch8=0) -> bytes:
+    """MAVLink v1 RC_CHANNELS_OVERRIDE (msg_id=70, CRC_EXTRA=124). 0 = don't override channel."""
+    payload = struct.pack('<BBHHHHHHHH', 1, 1, ch1, ch2, ch3, ch4, ch5, ch6, ch7, ch8)
+    return _mav_pkt(70, payload, 124)
+
 _mavlink_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-ARDUPILOT_MAVLINK = ('127.0.0.1', 14550)
-MODE_NAMES = {0:'STABILIZE', 2:'ALT_HOLD', 5:'LOITER', 6:'RTL', 9:'LAND'}
+ARDUPILOT_MAVLINK = ('127.0.0.1', 14552)
+MODE_NAMES = {0:'MANUAL', 5:'FBWA', 17:'QSTABILIZE', 18:'QHOVER', 19:'QLOITER', 20:'QLAND', 21:'QRTL'}
+
+# Auto-arm state
+_auto_arm_done = False
 
 # MAVRIK's Graphics send port from connections.json
 UDP_IP = "0.0.0.0"
@@ -285,7 +293,10 @@ async def websocket_handler(request):
                 # ── ARM / DISARM ──
                 elif data.get("type") == "arm":
                     arm_val = 1.0 if data.get("value") else 0.0
-                    force   = 21196.0 if data.get("force") else 0.0
+                    if data.get("force"):
+                        force = 2989.0 if arm_val > 0.5 else 21196.0
+                    else:
+                        force = 0.0
                     pkt = build_command_long(400, arm_val, force)  # MAV_CMD_COMPONENT_ARM_DISARM
                     _mavlink_sock.sendto(pkt, ARDUPILOT_MAVLINK)
                     armed = bool(data.get("value"))
@@ -377,6 +388,57 @@ async def stats_loop():
         stats["actuator_pkts"] = 0
         stats["setpoint_pkts"] = 0
 
+def _quat_to_roll_pitch(e0, ex, ey, ez):
+    roll  = math.atan2(2*(e0*ex + ey*ez), 1 - 2*(ex*ex + ey*ey))
+    sinp  = max(-1.0, min(1.0, 2*(e0*ey - ez*ex)))
+    pitch = math.asin(sinp)
+    return math.degrees(roll), math.degrees(pitch)
+
+async def auto_arm_loop():
+    global _auto_arm_done
+
+    # Wait for MAVRIK to start sending state packets
+    print("[AutoArm] Waiting for MAVRIK state...")
+    while latest_frame["t"] == 0:
+        await asyncio.sleep(0.5)
+
+    # Switch to QHOVER (mode 18) — send several times to ensure delivery
+    print("[AutoArm] MAVRIK connected. Switching to QHOVER (mode 18)...")
+    for _ in range(5):
+        _mavlink_sock.sendto(build_set_mode(18), ARDUPILOT_MAVLINK)
+        await asyncio.sleep(0.1)
+
+    # Wait for attitude to stabilise within ±10° before arming.
+    # pid_vtol holds the drone at ~0° pitch/roll from the start, so this is
+    # nearly immediate. Timer kept short (0.5s) so ARM fires at ~t=1.5s from
+    # startup — well before the ~4.5s crash window caused by the SITL's own
+    # internal timeout. The bridge's 15° handover gate is the real safety net.
+    print("[AutoArm] Waiting for stable attitude (|roll|<10°, |pitch|<10° for 2.0s)...")
+    stable_since = None
+    while not _auto_arm_done:
+        await asyncio.sleep(0.05)
+        s = latest_frame["state"]
+        roll_deg, pitch_deg = _quat_to_roll_pitch(s["e0"], s["ex"], s["ey"], s["ez"])
+
+        if abs(roll_deg) < 10.0 and abs(pitch_deg) < 10.0:
+            if stable_since is None:
+                stable_since = time.time()
+                print(f"[AutoArm] Attitude OK (roll={roll_deg:.1f}° pitch={pitch_deg:.1f}°) — starting 2.0s timer")
+            elif time.time() - stable_since >= 2.0:
+                print(f"[AutoArm] Stable for 2.0s (roll={roll_deg:.1f}° pitch={pitch_deg:.1f}°) — ARMING")
+                pkt = build_command_long(400, 1.0, 2989.0)  # MAV_CMD_COMPONENT_ARM_DISARM, force
+                _mavlink_sock.sendto(pkt, ARDUPILOT_MAVLINK)
+                _auto_arm_done = True
+                for q in client_queues:
+                    if q.qsize() < 10:
+                        q.put_nowait({"type": "gcs_ack", "armed": True})
+                print("[AutoArm] Armed. ArduPilot manages altitude in QHOVER — no RC override needed.")
+                return  # exit auto_arm_loop
+        else:
+            if stable_since is not None:
+                print(f"[AutoArm] Attitude drifted (roll={roll_deg:.1f}° pitch={pitch_deg:.1f}°) — resetting timer")
+            stable_since = None
+
 async def main():
     print("==================================================")
     print("  MAVRIK Native Web Viewer  ")
@@ -387,6 +449,7 @@ async def main():
     loop = asyncio.get_running_loop()
     
     asyncio.create_task(stats_loop())
+    asyncio.create_task(auto_arm_loop())
     transport_state, _ = await loop.create_datagram_endpoint(
         lambda: UdpProtocol(),
         local_addr=(UDP_IP, UDP_PORT)

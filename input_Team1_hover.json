@@ -21,9 +21,9 @@
             "Lh[in]": 56,
             "Lv[ft]": 4.5,
             "span[m]": 4,
-            "sigma[ft/s]": 0,
-            "probability_of_exceedance": 0.001,
-            "memory_size": 200
+            "sigma[ft/s]": 2,
+            "probability_of_exceedance": 1e-3,
+            "memory_size": 20
         }
     },
     "vehicle": {
@@ -32,7 +32,7 @@
         },
         "initial": {
             "airspeed[ft/s]": 0,
-            "altitude[ft]": 250.0,
+            "altitude[ft]": 3000.0,
             "latitude[deg]": 0,
             "longitude[deg]": 0,
             "heading_angle[deg]": 0.0,
