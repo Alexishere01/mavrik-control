@@ -2,29 +2,41 @@
 # Vehicle: Team1_VTOL loaded (160 lbs), Iyy=0.608 kg·m² but with 110lb payload Iyy is larger
 # At 50Hz loop, Q_A_ANG_P generates rate commands, Q_A_RAT_P produces torque.
 # NOTE: ArduPlane (QuadPlane) uses Q_A_ prefix — ATC_ params are ignored.
-Q_A_RAT_PIT_P 0.15
-Q_A_RAT_PIT_I 0.10
-Q_A_RAT_PIT_D 0.003
-Q_A_RAT_RLL_P 0.15
-Q_A_RAT_RLL_I 0.10
-Q_A_RAT_RLL_D 0.003
-Q_A_RAT_YAW_P 0.18
-Q_A_RAT_YAW_I 0.015
-Q_A_RAT_YAW_D 0.002
-Q_A_RAT_YAW_FF 0.2
-# Integrator limits — prevent windup during attitude excursions
-Q_A_RAT_PIT_IMAX 0.30
-Q_A_RAT_RLL_IMAX 0.30
-Q_A_RAT_YAW_IMAX 0.30
+#
+# SATURATION ANALYSIS (2026-05-11):
+# Max throttle differential at hover: ~0.25 (hover=0.40, floor=0.150, ceil~0.65)
+# Motor mapping confirmed correct: FWD motors UP → nose pitches UP ✔
+# Remaining issue: gains too small to arrest 4+ rad/s pitch rate at arm.
+# RAT_P=0.035 saturates at 7.1 rad/s (vs old 0.005 which saturated at 50 rad/s).
+# RAT_D=0.008 provides active damping of the ~0.1 rad/s pre-arm drift.
+Q_A_RAT_PIT_P 0.0406
+Q_A_RAT_PIT_I 0.00701
+Q_A_RAT_PIT_D 0.00304
+Q_A_RAT_RLL_P 0.0406
+Q_A_RAT_RLL_I 0.00701
+Q_A_RAT_RLL_D 0.00304
+Q_A_RAT_YAW_P 0.025
+Q_A_RAT_YAW_I 0.005
+Q_A_RAT_YAW_D 0.003
+Q_A_RAT_YAW_FF 0.05
+# Integrator limits
+Q_A_RAT_PIT_IMAX 0.2
+Q_A_RAT_RLL_IMAX 0.2
+Q_A_RAT_YAW_IMAX 0.10
 
 # --- QuadPlane Attitude PIDs (outer loop: angle error deg → rate setpoint deg/s)
-Q_A_ANG_PIT_P 3.0
-Q_A_ANG_RLL_P 3.0
-Q_A_ANG_YAW_P 2.0
+Q_A_ANG_PIT_P 4.839
+Q_A_ANG_RLL_P 4.839
+Q_A_ANG_YAW_P 1.5
 
 # --- Motor hover — 160 lb loaded vehicle
+# CRITICAL: QuadPlane uses Q_M_ prefix for motor params, NOT MOT_ (those are Copter-only).
+# MOT_SPIN_ARMED was silently ignored — this caused the motor floor-drop at arm on EVERY run.
+# Q_M_SPIN_ARM: normalized throttle motors hold when armed (prevents 0.095 floor at handover).
 MOT_THST_HOVER 0.40
-MOT_SPIN_ARMED 0.0
+Q_M_SPIN_ARM 0.0687342
+Q_M_SPIN_MIN 0.05
+Q_M_SPOOL_TIME 0
 
 # --- Default to QHOVER on startup (safer VTOL mode)
 # ArduPlane mode numbers: QSTABILIZE=17, QHOVER=18, QLOITER=19
@@ -87,13 +99,18 @@ Q_FRAME_TYPE 1
 
 # Differential Tilt for Yaw
 Q_TILT_MASK 5
-Q_TILT_YAW_ANGLE 0
+Q_TILT_YAW_ANGLE 15
 
 # Enable Aero Surfaces in VTOL modes
 Q_OPTIONS 0
 
 # Servo mapping to bridge
-# 1-4: Motors (FR, RL, FL, RR)
+# ArduPlane QuadX (FRAME_CLASS=1, FRAME_TYPE=1) motor positions in MAVRIK frame:
+#   SERVO1 func33 = Motor1 = Rear-Right  (MAVRIK throttleAftRight)
+#   SERVO2 func34 = Motor2 = Fwd-Left    (MAVRIK throttleFwdLeft)
+#   SERVO3 func35 = Motor3 = Rear-Left   (MAVRIK throttleAftLeft)
+#   SERVO4 func36 = Motor4 = Fwd-Right   (MAVRIK throttleFwdRight)
+# Confirmed from flight data: CH2,CH4 corrects nose-down pitch (forward motors).
 SERVO1_FUNCTION 33
 SERVO2_FUNCTION 34
 SERVO3_FUNCTION 35
@@ -106,30 +123,29 @@ SERVO7_FUNCTION 21
 SERVO8_FUNCTION 75
 SERVO8_MIN 1000
 SERVO8_MAX 2000
-SERVO8_TRIM 1500
+SERVO8_TRIM 1000
 SERVO8_REVERSED 0
 
 SERVO9_FUNCTION 76
 SERVO9_MIN 1000
 SERVO9_MAX 2000
-SERVO9_TRIM 1500
+SERVO9_TRIM 1000
 SERVO9_REVERSED 0
 
 # --- PID Scaffold for Empty Drone ---
-# NOTE: Parameters above (Q_A_RAT_*/Q_A_ANG_*) supersede these — kept for reference.
-# Roll
-Q_A_RAT_RLL_P 0.15
-Q_A_RAT_RLL_I 0.10
-Q_A_RAT_RLL_D 0.003
-Q_A_ANG_RLL_P 3.0
+# NOTE: Parameters above supersede these — kept for reference.
+Q_A_RAT_RLL_P 0.0410304
+Q_A_RAT_RLL_I 0.00665094
+Q_A_RAT_RLL_D 0.00358265
+Q_A_ANG_RLL_P 4.88089
 
-# Pitch
-Q_A_RAT_PIT_P 0.15
-Q_A_RAT_PIT_I 0.10
-Q_A_RAT_PIT_D 0.003
-Q_A_ANG_PIT_P 3.0
+Q_A_RAT_PIT_P 0.0410304
+Q_A_RAT_PIT_I 0.00665094
+Q_A_RAT_PIT_D 0.00358265
+Q_A_ANG_PIT_P 4.88089
 
 # Hover Thrust: MAVRIK hover trim is 0.394/0.410 (avg ~0.40)
 MOT_THST_HOVER 0.40
 INITIAL_MODE 18
 Q_TILT_TYPE 2
+Q_M_THST_HOVER 0.125

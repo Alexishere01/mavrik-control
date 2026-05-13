@@ -24,15 +24,14 @@ We use ArduPlane (QuadPlane) to support differential tilt for yaw. If you ever m
 *   **Tilt Mask:** `Q_TILT_MASK 5` (Only Front Right and Front Left motors tilt). Do NOT use `15`, as the rear motors are fixed.
 *   **Servo Mapping Constraints (CRITICAL):**
     *   The MAVRIK bridge maps ArduPilot's PWM output for the tilt servos (CH8/CH9) using an inverted formula: `1.0 - pwm_to_normalized(pwm_us)`.
-    *   `1000` PWM = `1.0` (fully backward — not used in practice).
-    *   `1500` PWM = hover → snap-band returns `VTOL_FLAP (0.99)`.
-    *   `2000` PWM = `0.0` (FORWARD / Fixed Wing).
+    *   `1000` PWM = `1.0` (VTOL Hover, motors pointing UP). MAVRIK caps this internally at `0.99`.
+    *   `2000` PWM = `0.0` (FORWARD / Fixed Wing flight).
     *   Required settings:
-        *   `SERVO8_TRIM 1500` and `SERVO9_TRIM 1500` — **CRITICAL**: centers the differential-yaw authority. With TRIM=1000, `Q_TILT_TYPE 2` has no room to tilt backward for yaw corrections, causing one motor to saturate toward 2000 (full FW tilt) during large yaw errors → uncontrolled forward transition → altitude OOB crash.
+        *   `SERVO8_TRIM 1000` and `SERVO9_TRIM 1000` — **CRITICAL**: Because MAVRIK's motors cannot tilt *backwards* past 90 degrees, ArduPilot must know that the hover trim is already at the physical limit (`MIN`). This forces ArduPilot to yaw by exclusively tilting the opposite motor *forward* (towards `MAX`), which natively generates differential thrust yaw without breaking the simulation!
+        *   `Q_TILT_YAW_ANGLE 15` — **CRITICAL**: Limits the maximum forward tilt used for yaw to 15 degrees. If this is missing or set too high, ArduPilot will saturate the tilt servo to 2000 during large yaw errors, dumping all vertical lift and causing an uncontrolled altitude crash. If this is 0, vectored yaw is disabled entirely.
         *   `SERVO8_MIN 1000` and `SERVO8_MAX 2000`
         *   `SERVO9_MIN 1000` and `SERVO9_MAX 2000`
         *   `SERVO8_REVERSED 0` and `SERVO9_REVERSED 0`
-        *   `Q_TILT_YAW_ANGLE 0`
 *   **Mode switching:** `FLTMODE_CH 0` — disables RC-based mode switching. Without this, AP reads ch8=0 (no hardware RC) and immediately switches away from QHOVER after arm.
 *   **Initial mode:** `INITIAL_MODE 18` (QHOVER). Ensures AP starts in the correct VTOL mode before the web viewer fires SET_MODE.
 
@@ -62,16 +61,23 @@ The bridge therefore uses `1.0 - pwm_to_normalized(pwm_us)` for tilt channels CH
 
 **Neutral snap band**: `[1440, 1560]` → `VTOL_FLAP (0.99)`. With `SERVO8_TRIM=1500`, AP outputs exactly 1500 at hover. The band absorbs small differential-yaw offsets (±40 PWM) without letting them partially de-tilt the rotors. Do NOT narrow this band. Do NOT use `SERVO8_TRIM=1000` — that removes backward yaw authority and causes the tilt controller to saturate toward 2000 (full FW) during large yaw errors, crashing the MAVRIK atmosphere model.
 
-### Motor Channel Mapping (verified empirically)
+### Motor Channel Mapping (confirmed from flight data 2026-05-11)
 ```
-CH1 → thrFR  (Front Right)
-CH2 → thrAL  (Aft Left)
-CH3 → thrFL  (Front Left)
-CH4 → thrAR  (Aft Right)
+CH1 → thrAR  (Aft Right)   [MAVRIK x=-1.893]
+CH2 → thrFL  (Fwd Left)    [MAVRIK x=+1.739]
+CH3 → thrAL  (Aft Left)    [MAVRIK x=-1.893]
+CH4 → thrFR  (Fwd Right)   [MAVRIK x=+1.739]
 ```
 MAVRIK control packet order: `(aileron, elevator, rudder, thrFR, thrFL, thrAR, thrAL, flapsRight, flapsLeft)`
 
-Note the packet has `thrFR, thrFL, thrAR, thrAL` — ArduPilot CH2 is thrAL (not thrAR). Swapping these causes cross-coupled roll/pitch.
+**Why this mapping:** ArduPlane QuadX raises CH2+CH4 ("rear" pair) to pitch nose-UP.
+In MAVRIK, nose-UP requires the FORWARD motors (x=+1.739) to increase.
+So CH2/CH4 must feed MAVRIK's fwd slots (thrFL/thrFR), and CH1/CH3 feed aft slots (thrAR/thrAL).
+Roll is preserved: right-side = CH1+CH4 = thrAR+thrFR, left = CH2+CH3 = thrFL+thrAL.
+
+**EEPROM:** `start_terminals.sh` now always passes `--wipe-eeprom` to SITL.
+Never manually delete `eeprom.bin` — that was a workaround for the missing flag.
+`mavrik.parm` is the single source of truth for every run.
 
 ### Three-Phase Bridge Architecture (Working as of 2026-05-10)
 
@@ -137,7 +143,8 @@ Q_A_RAT_PIT_IMAX 0.30  Q_A_RAT_RLL_IMAX 0.30  Q_A_RAT_YAW_IMAX 0.30
 
 Q_A_ANG_PIT_P  3.0     Q_A_ANG_RLL_P  3.0     Q_A_ANG_YAW_P  2.0
 
-MOT_THST_HOVER 0.40
+Q_M_THST_HOVER 0.125
+Q_M_SPIN_MIN 0.05
 ```
 
 **Why these values** (abbreviated tuning history):
@@ -145,7 +152,8 @@ MOT_THST_HOVER 0.40
 - `Q_A_ANG_*_P`: Started at 2.0 (too weak — only 6% of time near-level). Raised to 4.5 → visible ~0.4s roll oscillations. Settled at **3.0**.
 - `Q_A_RAT_*_P`: Started at 0.08–0.12. Raised with angle gains. Settled at **0.15** (pitch/roll) and **0.18** (yaw).
 - `IMAX 0.30`: Added after observing integrator windup during large attitude excursions causing the drone to saturate motors in one direction indefinitely.
-- `MOT_THST_HOVER 0.40`: Matches MAVRIK trim (avg of 0.394/0.410 front/aft). Too low (0.35) caused uncontrolled climbs to 4000+ ft from excess thrust margin.
+- **CRITICAL HOVER THRUST DISCOVERY (2026-05-12)**: The drone has an 8:1 Thrust-to-Weight ratio (weight=49.54 lbf, max thrust=396.96 lbf). True hover throttle is exactly `0.125`. Previous configurations mistakenly set `Q_M_THST_HOVER` and bridge trim to `0.40`. This caused massive uncommanded climbs at arming, forcing ArduPilot's altitude controller to drop all motors to their minimum floor (`Q_M_SPIN_MIN`), which completely destroyed all pitch/roll authority and caused an unrecoverable crash at exactly 0.8 seconds post-arm.
+- **Flight Mode (QHOVER vs QLAND)**: In ArduPlane QuadPlanes, `QHOVER` is mode `18`. `auto_tune.py` mistakenly armed the drone into mode `20` (`QLAND`), which caused the drone to actively command descents during tuning. This has been corrected back to 18.
 
 **Loiter / position limits** (set conservatively to prevent tumble from over-aggressive position demands):
 ```

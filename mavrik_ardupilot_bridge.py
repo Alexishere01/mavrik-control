@@ -58,9 +58,9 @@ PRE_ARM_FREEFALL = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, VTOL_FLAP, VTOL_FLAP)
 # Hover trim from Team1_VTOL.json — sent once MAVRIK is connected but before arming.
 # This matches the physics-engine equilibrium exactly, so MAVRIK holds ~0° pitch/roll
 # and we arm with near-level attitude instead of the ~30° freefall drift.
-PRE_ARM_HOVER = (0.0, 0.0, 0.0, 0.394, 0.394, 0.410, 0.410, VTOL_FLAP, VTOL_FLAP)
+PRE_ARM_HOVER = (0.0, 0.0, 0.0, 0.122, 0.122, 0.127, 0.127, VTOL_FLAP, VTOL_FLAP)
 
-PRE_ARM_HOVER_LEVEL = 0.40   # kept for ground_hold_controls() reference only
+PRE_ARM_HOVER_LEVEL = 0.125   # kept for ground_hold_controls() reference only
 PRE_ARM_KP          = 0.6
 PRE_ARM_KD          = 0.05
 
@@ -298,9 +298,9 @@ class PWMMapper:
 
     # Trim computed from Team1_VTOL.json mass properties:
     #   CG_x = -0.114 ft, fwd arm = 1.854 ft, aft arm = 1.778 ft
-    #   T_fwd = 39.06 lbf (0.394), T_aft = 40.72 lbf (0.410)
-    HOVER_THR_FWD = 0.394
-    HOVER_THR_AFT = 0.410
+    #   T_fwd = 24.26 lbf (0.122), T_aft = 25.28 lbf (0.127)  (W=49.54, max T=396.96)
+    HOVER_THR_FWD = 0.122
+    HOVER_THR_AFT = 0.127
 
     def __init__(self, flaps_fixed: float = 1.0,
                  aileron_channel: Optional[int] = None,
@@ -368,11 +368,27 @@ class PWMMapper:
                 self.has_armed = True
                 print("\n  [Bridge] ArduPilot commanded thrust > 1200us. Handing over control to Ardupilot EKF!\n")
 
-        # Pass-through: MAVRIK's 4 motors from ArduCopter's CH1-4
-        thr_fr = pwm_to_normalized(pwm[0])  # CH1
-        thr_al = pwm_to_normalized(pwm[1])  # CH2
-        thr_fl = pwm_to_normalized(pwm[2])  # CH3
-        thr_ar = pwm_to_normalized(pwm[3])  # CH4
+        # Pass-through: MAVRIK's 4 motors from ArduPlane CH1-4.
+        # ArduPlane QuadX pitch mixing: raises CH2+CH4 ("rear" pair) to pitch nose-UP.
+        # In MAVRIK: nose-UP requires FORWARD motors (x=+1.739) to increase.
+        # Therefore CH2/CH4 must map to MAVRIK fwd slots, CH1/CH3 to aft slots.
+        #
+        # Roll is preserved: right-side = CH1+CH4, left-side = CH2+CH3.
+        #   CH1=thrAR (aft-right), CH4=thrFR (fwd-right) → right side thrust
+        #   CH2=thrFL (fwd-left),  CH3=thrAL (aft-left)  → left side thrust
+        # AP roll-right raises CH1+CH4 → thrAR+thrFR (right side) UP → rolls RIGHT ✓
+        # AP pitch-up  raises CH2+CH4 → thrFL+thrFR (fwd motors)  UP → nose UP  ✓
+        #
+        # Confirmed from bridge_diag.csv 2026-05-11: ap_split<0 (CH2>CH1) → pitch UP.
+        # Corrected Mapping (ArduPlane QuadX -> MAVRIK Team1_VTOL):
+        # AP CH1 = Front-Right -> MAVRIK Fwd-Right (thr_fr)
+        # AP CH2 = Rear-Left   -> MAVRIK Aft-Left  (thr_al)
+        # AP CH3 = Front-Left  -> MAVRIK Fwd-Left  (thr_fl)
+        # AP CH4 = Rear-Right  -> MAVRIK Aft-Right (thr_ar)
+        thr_fr = pwm_to_normalized(pwm[0])  # CH1 -> MAVRIK Fwd-Right
+        thr_al = pwm_to_normalized(pwm[1])  # CH2 -> MAVRIK Aft-Left
+        thr_fl = pwm_to_normalized(pwm[2])  # CH3 -> MAVRIK Fwd-Left
+        thr_ar = pwm_to_normalized(pwm[3])  # CH4 -> MAVRIK Aft-Right
 
         # Pass-through: Aero surfaces from CH5-CH7
         aileron  = pwm_to_symmetric(pwm[4]) * 15.0  # CH5
@@ -388,13 +404,14 @@ class PWMMapper:
         # use vectored yaw, which would produce 1.0 (backward tilt). MAVRIK has no
         # backward-tilt range so clamp to 0.99.
         def _tilt(pwm_us: int) -> float:
-            if 1440 <= pwm_us <= 1560:
-                return VTOL_FLAP
             return min(VTOL_FLAP, 1.0 - pwm_to_normalized(pwm_us))
         flaps_l = _tilt(pwm[7])  # CH8
         flaps_r = _tilt(pwm[8])  # CH9
 
-        # MAVRIK packet order: aileron, elevator, rudder, thrFR, thrFL, thrAR, thrAL, flapsRight, flapsLeft
+        # MAVRIK packet order (Team1_VTOL.json control_effectors):
+        #   [0]=aileron [1]=elevator [2]=rudder
+        #   [3]=throttleFwdRight [4]=throttleFwdLeft [5]=throttleAftRight [6]=throttleAftLeft
+        #   [7]=flapsRight [8]=flapsLeft
         ctrl = (aileron, elevator, rudder, thr_fr, thr_fl, thr_ar, thr_al, flaps_r, flaps_l)
         self.last_controls = ctrl
         return ctrl
@@ -696,8 +713,9 @@ def run(config_path: str):
     # Grace period after handover: send hover trim to MAVRIK instead of AP's low PWM
     # so pid_vtol has time to exit before the bridge takes exclusive control of port 5006.
     # 150 ms = ~300 bridge loop ticks at 2 kHz, well past pid_vtol's ~20 ms shutdown.
-    HANDOVER_GRACE_SECS = 0.15
-    _handover_grace_until = 0.0   # wall-clock time when grace period ends
+    HANDOVER_GRACE_SECS = 0.15   # just long enough for pid_vtol to stop (~20ms)
+    _handover_grace_until  = 0.0  # wall-clock: grace period end
+    _soft_floor_until      = 0.0  # wall-clock: apply motor soft-floor until this time
 
     # Port 5012 is held by pid_vtol.py during pre-arm. Bind lazily after handover.
     rc_rx_sock = None
@@ -821,6 +839,7 @@ def run(config_path: str):
                 else:
                     pwm_map.has_armed = True
                     _handover_grace_until = now + HANDOVER_GRACE_SECS
+                    _soft_floor_until     = now + HANDOVER_GRACE_SECS + 0.50  # 500ms soft floor after grace
                     to_json.reset()  # clear accel history so first live frame is clean
                     print(f"\n  [Bridge] Handover: roll={roll_deg:.1f}° pitch={pitch_deg:.1f}° "
                           f"alt={real_alt_ft:.0f}ft "
@@ -830,18 +849,20 @@ def run(config_path: str):
                           f"Grace period: {HANDOVER_GRACE_SECS*1000:.0f}ms hover trim.")
         else:
             if now < _handover_grace_until:
-                # Grace period: feed MAVRIK hover trim every bridge tick (2 kHz) so it
-                # never blocks on recvfrom while pid_vtol is winding down (~20 ms).
-                # pid_vtol also sends hover trim during its last ~20 ms, so MAVRIK
-                # gets consistent commands from both sides — no physics conflict.
-                mx.send_controls(PRE_ARM_HOVER)
-                pwm_map.last_controls = PRE_ARM_HOVER
+                # Grace period: keep the bridge's own PD controller active so
+                # pitch/roll are actively corrected while pid_vtol winds down (~20ms).
+                # Using constant PRE_ARM_HOVER caused pitch to drift unchecked,
+                # arriving at handover with several degrees of built-up error.
+                active_ctrl = pre_arm_ctrl.update(pwm_map._pitch, pwm_map._roll, pwm_map._q, pwm_map._p)
+                mx.send_controls(active_ctrl)
+                pwm_map.last_controls = active_ctrl
             else:
                 if not getattr(pwm_map, '_grace_ended', False):
                     pwm_map._grace_ended = True
-                    print("  [Bridge] Grace period ended — forwarding AP commands to MAVRIK.")
+                    print("  [Bridge] Grace ended — forwarding AP to MAVRIK directly.")
                 if frame is not None:
                     controls = pwm_map.map(frame.pwm)
+                    pwm_map.last_controls = controls
                     mx.send_controls(controls)
 
         # ── Step 3: send state to ArduPilot at 200 Hz (rate-limited) ─────────────
