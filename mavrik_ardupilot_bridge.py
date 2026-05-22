@@ -113,21 +113,23 @@ class PreArmController:
 
         # Errors in degrees — setpoint is 0° pitch, 0° roll
         pitch_err = -math.degrees(pitch_rad)   # nose-down (neg rad) → positive error
-        roll_err  = -math.degrees(roll_rad)    # right tilt (pos rad) → negative error
+        roll_err  = math.degrees(roll_rad)    # right tilt (pos rad) → positive error (stabilises left)
         q_d = math.degrees(q_rads)
         p_d = math.degrees(p_rads)
 
         # Attitude → rate command
-        q_cmd = self.KP_PIT_ATT * pitch_err - self.KD_PIT_ATT * q_d
-        p_cmd = self.KP_ROLL_ATT * roll_err  - self.KD_ROLL_ATT * p_d
+        q_cmd = self.KP_PIT_ATT * pitch_err + self.KD_PIT_ATT * q_d
+        p_cmd = self.KP_ROLL_ATT * roll_err  + self.KD_ROLL_ATT * p_d
 
         # Rate → throttle differential
         pitch_diff = self.KP_PIT_RAT * q_cmd
         roll_diff  = self.KP_ROLL_RAT * p_cmd
 
-        # Motor mixing: pitch_diff>0 adds front/removes rear; roll_diff>0 adds right/removes left
-        fr = max(0.0, min(1.0, self.TRIM_FWD + ramp * ( pitch_diff - roll_diff)))
-        fl = max(0.0, min(1.0, self.TRIM_FWD + ramp * ( pitch_diff + roll_diff)))
+        # Decoupled Motor mixing:
+        # pitch_diff > 0: nose UP. Add to fwd, subtract from aft.
+        # roll_diff > 0: roll LEFT. Add to RIGHT motors (fr, al), subtract from LEFT motors (fl, ar).
+        fr = max(0.0, min(1.0, self.TRIM_FWD + ramp * ( pitch_diff + roll_diff)))
+        fl = max(0.0, min(1.0, self.TRIM_FWD + ramp * ( pitch_diff - roll_diff)))
         ar = max(0.0, min(1.0, self.TRIM_AFT + ramp * (-pitch_diff - roll_diff)))
         al = max(0.0, min(1.0, self.TRIM_AFT + ramp * (-pitch_diff + roll_diff)))
 
@@ -137,6 +139,7 @@ class PreArmController:
         al = self._rl(al, self._last_thr[3])
         self._last_thr = [fr, fl, ar, al]
 
+        # Return standard control tuple order: (aileron, elevator, rudder, thr_fr, thr_fl, thr_al, thr_ar, flaps_r, flaps_l)
         self._last_out = (0.0, 0.0, 0.0, fr, fl, ar, al, VTOL_FLAP, VTOL_FLAP)
         return self._last_out
 
@@ -368,69 +371,61 @@ class PWMMapper:
                 self.has_armed = True
                 print("\n  [Bridge] ArduPilot commanded thrust > 1200us. Handing over control to Ardupilot EKF!\n")
 
-        # Pass-through: MAVRIK's 4 motors from ArduPlane CH1-4.
-        # ArduPlane QuadX pitch mixing: raises CH2+CH4 ("rear" pair) to pitch nose-UP.
-        # In MAVRIK: nose-UP requires FORWARD motors (x=+1.739) to increase.
-        # Therefore CH2/CH4 must map to MAVRIK fwd slots, CH1/CH3 to aft slots.
-        #
-        # Roll is preserved: right-side = CH1+CH4, left-side = CH2+CH3.
-        #   CH1=thrAR (aft-right), CH4=thrFR (fwd-right) → right side thrust
-        #   CH2=thrFL (fwd-left),  CH3=thrAL (aft-left)  → left side thrust
-        # AP roll-right raises CH1+CH4 → thrAR+thrFR (right side) UP → rolls RIGHT ✓
-        # AP pitch-up  raises CH2+CH4 → thrFL+thrFR (fwd motors)  UP → nose UP  ✓
-        #
-        # Confirmed from bridge_diag.csv 2026-05-11: ap_split<0 (CH2>CH1) → pitch UP.
-        # Swapped Front/Rear channels to invert the pitch feedback loop to negative feedback:
-        # Front motors (Index 3/4) get Rear commands thr_al/thr_ar -> so thr_al/thr_ar must have +0.034 trim.
-        # Rear motors (Index 5/6) get Front commands thr_fr/thr_fl -> so thr_fr/thr_fl must have -0.034 trim.
-        thr_fr = pwm_to_normalized(pwm[0]) - 0.034  # CH1 -> MAVRIK Rear-Right (index 5)
-        thr_al = pwm_to_normalized(pwm[1]) + 0.034  # CH2 -> MAVRIK Front-Left (index 3)
-        thr_fl = pwm_to_normalized(pwm[2]) - 0.034  # CH3 -> MAVRIK Rear-Left (index 6)
-        thr_ar = pwm_to_normalized(pwm[3]) + 0.034  # CH4 -> MAVRIK Front-Right (index 4)
+        # Decode standard QuadX motor inputs (pwm[0..3]) to get raw Throttle, Roll, Pitch, Yaw demands.
+        # Standard ArduPilot QuadX motor equations:
+        #   u1 (FR) = thr - 0.5 * roll + 0.5 * pit - 0.5 * yaw
+        #   u2 (RL) = thr + 0.5 * roll - 0.5 * pit - 0.5 * yaw
+        #   u3 (FL) = thr + 0.5 * roll + 0.5 * pit + 0.5 * yaw
+        #   u4 (RR) = thr - 0.5 * roll - 0.5 * pit + 0.5 * yaw
+        u1 = pwm_to_normalized(pwm[0])  # AP CH1 = Front-Right
+        u2 = pwm_to_normalized(pwm[1])  # AP CH2 = Rear-Left
+        u3 = pwm_to_normalized(pwm[2])  # AP CH3 = Front-Left
+        u4 = pwm_to_normalized(pwm[3])  # AP CH4 = Rear-Right
 
-        # Pass-through: Aero surfaces from CH5-CH7
-        # Standard aerodynamic deflections (positive commands trailing-edge down/left to pitch/roll down/left)
-        # match ArduPilot's physical servo outputs, so keep them original (non-inverted).
+        # Solve system of 4 linear equations to perfectly reconstruct demands:
+        thr  = 0.25 * (u1 + u2 + u3 + u4)
+        roll = 0.50 * (-u1 + u2 + u3 - u4)
+        pit  = 0.50 * (u1 - u2 + u3 - u4)
+
+        # Apply MAVRIK's correct lateral mixer matching pid_vtol.py:
+        #   thr_fr (physically Front-Left, rolls RIGHT): thr + pit + roll
+        #   thr_fl (physically Front-Right, rolls LEFT):  thr + pit - roll
+        #   thr_al (physically Rear-Left, rolls RIGHT):   thr - pit + roll
+        #   thr_ar (physically Rear-Right, rolls LEFT):  thr - pit - roll
+        thr_fr = max(0.0, min(1.0, thr + pit + roll))
+        thr_fl = max(0.0, min(1.0, thr + pit - roll))
+        thr_al = max(0.0, min(1.0, thr - pit + roll))
+        thr_ar = max(0.0, min(1.0, thr - pit - roll))
+
+        # Pass-through: Aero surfaces from CH5-CH7. Negate elevator/rudder to match MAVRIK convention.
         aileron  = pwm_to_symmetric(pwm[4]) * 15.0  # CH5
-        elevator = pwm_to_symmetric(pwm[5]) * 15.0  # CH6
-        rudder   = pwm_to_symmetric(pwm[6]) * 15.0   # CH7
+        elevator = -pwm_to_symmetric(pwm[5]) * 15.0 # CH6
+        rudder   = -pwm_to_symmetric(pwm[6]) * 15.0 # CH7
 
         # Tilt servos from CH8-CH9 (Ardupilot TiltMotorLeft/Right).
         # ArduPilot: 1000=VTOL hover (motors up), 2000=FW (motors forward).
         # MAVRIK: 0.99=VTOL (motors up), 0.0=FW (motors forward).
         # Inverted mapping: 1000→1.0(VTOL), 2000→0.0(FW).
-        # SERVO8/9_TRIM=1500: AP outputs 1500 at hover → snap band → 0.99.
-        # Cap result at VTOL_FLAP: AP sends 1000 (SERVO_MIN) in modes that don't
-        # use vectored yaw, which would produce 1.0 (backward tilt). MAVRIK has no
-        # backward-tilt range so clamp to 0.99.
-        # ArduPilot commands nominal 1142 us in hover with Q_TILT_YAW_ANGLE=15.
         # Shift the active range so that 1142 us maps exactly to fully vertical (VTOL_FLAP=0.99).
-        # Any value <= 1142 remains fully vertical (0.99).
-        # Linear scaling from (1142, 0.99) to (2000, 0.0).
         def _tilt(pwm_us: int) -> float:
             if pwm_us <= 1142:
                 return VTOL_FLAP
             fraction = (pwm_us - 1142) / (2000 - 1142)
             return max(0.0, VTOL_FLAP * (1.0 - fraction))
-        flaps_l = _tilt(pwm[7])  # CH8 -> MAVRIK Flaps-Left (original)
-        flaps_r = _tilt(pwm[8])  # CH9 -> MAVRIK Flaps-Right (original)
+        flaps_l = _tilt(pwm[7])  # CH8 -> MAVRIK Flaps-Left
+        flaps_r = _tilt(pwm[8])  # CH9 -> MAVRIK Flaps-Right
 
         # MAVRIK packet order (Team1_VTOL.json control_effectors):
         #   [0]=aileron [1]=elevator [2]=rudder
-        #   [3]=throttleFwdRight (physically Front-LEFT, y = -6.6)
-        #   [4]=throttleFwdLeft  (physically Front-RIGHT, y = +6.6)
-        #   [5]=throttleAftRight (physically Rear-RIGHT, y = +6.6)
-        #   [6]=throttleAftLeft  (physically Rear-LEFT, y = -6.6)
+        #   [3]=throttleFwdRight (physically Front-Right, y = -6.6)
+        #   [4]=throttleFwdLeft  (physically Front-Left,  y = +6.6)
+        #   [5]=throttleAftRight (physically Rear-Left,   y = +6.6)
+        #   [6]=throttleAftLeft  (physically Rear-Right,  y = -6.6)
         #   [7]=flapsRight [8]=flapsLeft
-        # Physically correct, stable mapping matching ArduPilot QuadX (CH1=FR, CH2=AL, CH3=FL, CH4=AR):
-        # Swapped Front/Rear channels to invert the pitch feedback loop to negative feedback:
-        # Index 3 (Front-Left)  gets thr_al (Rear-Left command CH2)
-        # Index 4 (Front-Right) gets thr_ar (Rear-Right command CH4)
-        # Index 5 (Rear-Right)  gets thr_fr (Front-Right command CH1)
-        # Index 6 (Rear-Left)   gets thr_fl (Front-Left command CH3)
-        ctrl = (aileron, elevator, rudder, thr_al, thr_ar, thr_fr, thr_fl, flaps_r, flaps_l)
+        ctrl = (aileron, elevator, rudder, thr_fr, thr_fl, thr_al, thr_ar, flaps_r, flaps_l)
         self.last_controls = ctrl
         return ctrl
+
 
 
 # ---------------------------------------------------------------------------
@@ -551,19 +546,26 @@ class StateToJSON:
 
     def __init__(self):
         self.prev_state: Optional[MavrikState] = None
+        self.pos_origin: Optional[Tuple[float, float, float]] = None
 
     def reset(self):
         self.prev_state = None
+        self.pos_origin = None
 
     def _accel_body(self, s: MavrikState) -> Tuple[float, float, float]:
-        """Specific-force body frame (m/s^2). Accelerometer reading.
+        """Specific-force in standard RHS NED body frame (m/s^2). Accelerometer reading.
 
         Follows f_body = dv_body/dt + omega x v_body - g_body
         At rest + level, this returns approximately (0, 0, -9.81).
-        For MVP we drop the omega x v_body cross-coupling; small in hover.
         """
-        q = (s.e0, s.ex, s.ey, s.ez)
-        g_body = earth_to_body((0.0, 0.0, GRAVITY_MS2), q)
+        # 1. RHS NED Quaternion: q_ned = (e0, ex, -ey, -ez)
+        q_ned = (s.e0, s.ex, -s.ey, -s.ez)
+        g_body = earth_to_body((0.0, 0.0, GRAVITY_MS2), q_ned)
+
+        # Body velocities in standard RHS NED body frame:
+        u_ned_ms = s.u * FT_TO_M
+        v_ned_ms = -s.v * FT_TO_M
+        w_ned_ms = -s.w * FT_TO_M
 
         if self.prev_state is None or s.t <= self.prev_state.t:
             self.prev_state = s
@@ -571,10 +573,13 @@ class StateToJSON:
             return (-g_body[0], -g_body[1], -g_body[2])
 
         dt = max(s.t - self.prev_state.t, 0.005)
-        u_prev, v_prev, w_prev = self.prev_state.u, self.prev_state.v, self.prev_state.w
-        du = (s.u - u_prev) * FT_TO_M / dt
-        dv = (s.v - v_prev) * FT_TO_M / dt
-        dw = (s.w - w_prev) * FT_TO_M / dt
+        u_prev_ms = self.prev_state.u * FT_TO_M
+        v_prev_ms = -self.prev_state.v * FT_TO_M
+        w_prev_ms = -self.prev_state.w * FT_TO_M
+
+        du = (u_ned_ms - u_prev_ms) / dt
+        dv = (v_ned_ms - v_prev_ms) / dt
+        dw = (w_ned_ms - w_prev_ms) / dt
         
         # Apply a low-pass filter to prevent massive dV/dt noise from confusing ArduPilot's EKF
         alpha = 0.2
@@ -586,42 +591,64 @@ class StateToJSON:
             dw = alpha * dw + (1.0 - alpha) * self._last_dw
             self._last_du, self._last_dv, self._last_dw = du, dv, dw
 
-        u_ms, v_ms, w_ms = s.u * FT_TO_M, s.v * FT_TO_M, s.w * FT_TO_M
-        du += (s.q * w_ms - s.r * v_ms)
-        dv += (s.r * u_ms - s.p * w_ms)
-        dw += (s.p * v_ms - s.q * u_ms)
+        # Coriolis acceleration: omega x v in standard RHS NED
+        # omega = (p_ned, q_ned, r_ned) = (s.p, s.q, -s.r)
+        p_ned = s.p
+        q_ned_rate = s.q
+        r_ned = -s.r
+
+        ax_cor = q_ned_rate * w_ned_ms - r_ned * v_ned_ms
+        ay_cor = r_ned * u_ned_ms - p_ned * w_ned_ms
+        az_cor = p_ned * v_ned_ms - q_ned_rate * u_ned_ms
+
+        du += ax_cor
+        dv += ay_cor
+        dw += az_cor
 
         self.prev_state = s
         # specific force = dv_body/dt + omega x v - g_body
         return (du - g_body[0], dv - g_body[1], dw - g_body[2])
 
     def build(self, s: MavrikState, override_t: Optional[float] = None) -> dict:
-        q = (s.e0, s.ex, s.ey, s.ez)
-        roll, pitch, yaw = quat_to_euler(*q)
+        # 1. Transform MAVRIK local LHS coordinates to standard RHS NED
+        # NED Quaternion: q_ned = (e0, ex, -ey, -ez)
+        q_ned = (s.e0, s.ex, -s.ey, -s.ez)
+        roll, pitch, yaw = quat_to_euler(*q_ned)
 
-        # velocities
-        u_ms, v_ms, w_ms = s.u * FT_TO_M, s.v * FT_TO_M, s.w * FT_TO_M
-        vn, ve, vd = body_to_earth((u_ms, v_ms, w_ms), q)
+        # Body velocities in NED RHS: u_ned=u, v_ned=-v, w_ned=-w
+        u_ned_ms = s.u * FT_TO_M
+        v_ned_ms = -s.v * FT_TO_M
+        w_ned_ms = -s.w * FT_TO_M
+        
+        # Position in NED RHS: pn=xf, pe=-yf, pd=-zf
+        pn = s.xf * FT_TO_M
+        pe = -s.yf * FT_TO_M
+        pd = -s.zf * FT_TO_M
 
-        # position (already earth NED in ft)
-        pn, pe, pd = s.xf * FT_TO_M, s.yf * FT_TO_M, s.zf * FT_TO_M
+        # Rotated Earth velocities using NED RHS parameters
+        vn, ve, vd = body_to_earth((u_ned_ms, v_ned_ms, w_ned_ms), q_ned)
 
-        # accel
+        # Specific force / acceleration in MAVRIK frame first, then transform to NED RHS
         ax, ay, az = self._accel_body(s)
+        ax_ned = ax
+        ay_ned = ay
+        az_ned = az
 
         t_out = override_t if override_t is not None else s.t
+        
+        # Calculate true airspeed in standard RHS
+        airspeed_ms = math.sqrt(u_ned_ms**2 + v_ned_ms**2 + w_ned_ms**2)
 
-        # Invert roll and pitch axis inputs sent to ArduPilot (including ax and ay)
-        # to match ArduPilot's right-handed NED system with MAVRIK's coordinate systems. Keep yaw and accel_z original.
         return {
             "timestamp": t_out,
             "imu": {
-                "gyro":       [-s.p, -s.q, s.r],
-                "accel_body": [-ax, -ay, az],
+                "gyro":       [s.p, s.q, -s.r],
+                "accel_body": [ax_ned, ay_ned, az_ned],
             },
             "position":   [pn, pe, pd],
-            "attitude":   [-roll, -pitch, yaw],
+            "attitude":   [roll, pitch, yaw],
             "velocity":   [vn, ve, vd],
+            "airspeed":   airspeed_ms,
         }
 
 
@@ -668,6 +695,28 @@ def _x25crc(data: bytes) -> int:
         tmp ^= (tmp << 4) & 0xFF
         crc = ((crc >> 8) ^ (tmp << 8) ^ (tmp << 3) ^ (tmp >> 4)) & 0xFFFF
     return crc
+
+def parse_heartbeat_mode(data: bytes) -> Optional[int]:
+    """Parse custom_mode from a raw MAVLink HEARTBEAT packet (v1 or v2)."""
+    if not data:
+        return None
+    # MAVLink v1
+    if data[0] == 0xFE and len(data) >= 6:
+        payload_len = data[1]
+        msgid = data[5]
+        if msgid == 0 and len(data) >= 6 + payload_len:
+            # custom_mode is uint32 (first 4 bytes of payload)
+            custom_mode = struct.unpack('<I', data[6:10])[0]
+            return custom_mode
+    # MAVLink v2
+    elif data[0] == 0xFD and len(data) >= 10:
+        payload_len = data[1]
+        msgid = data[7] | (data[8] << 8) | (data[9] << 16)
+        if msgid == 0 and len(data) >= 10 + payload_len:
+            custom_mode = struct.unpack('<I', data[10:14])[0]
+            return custom_mode
+    return None
+
 
 _rc_seq = 0
 
@@ -740,6 +789,9 @@ def run(config_path: str):
     _rc_sock_bound = False
     # Send MAVLink to ArduPilot's GCS MAVLink port (SITL default: 14550)
     mavlink_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    mavlink_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    mavlink_sock.bind(('127.0.0.1', 0))
+    mavlink_sock.setblocking(False)
     # UDP socket used to signal pid_vtol.py to stop on handover
     _stop_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     print("  RC override (in):             udp://*:5012  (bound after handover to ArduPilot)")
@@ -784,6 +836,9 @@ def run(config_path: str):
     print(f"  Diagnostic log:  {os.path.abspath(log_path)}")
     print()
 
+    current_flight_mode = 18    # default to QHOVER
+    next_mavlink_poke = 0.0     # trigger immediate poke to establish UDP connection
+
     while running["ok"]:
         now = time.time()
 
@@ -797,6 +852,31 @@ def run(config_path: str):
 
         # Drain any MAVRIK state packets regardless of whether ArduPilot is active
         s = mx.poll_latest_state()
+
+        # Drain MAVLink port and detect flight mode
+        try:
+            while True:
+                data, addr = mavlink_sock.recvfrom(2048)
+                mode = parse_heartbeat_mode(data)
+                if mode is not None:
+                    if mode != current_flight_mode:
+                        print(f"\n  [Bridge] Flight mode changed from {current_flight_mode} to {mode}!\n")
+                        current_flight_mode = mode
+        except BlockingIOError:
+            pass
+        except Exception:
+            pass
+
+        # Send heartbeat poke to ArduPilot periodically (every 1.0s) to establish bidirectional MAVLink
+        if now >= next_mavlink_poke:
+            next_mavlink_poke = now + 1.0
+            # MAVLink heartbeat packet (SysID 255, CompID 190)
+            heartbeat_pkt = b'\xfe\t\x00\xff\xbe\x00\x00\x00\x00\x00\x01\x01\x03\x01\x03\x1f\x1c'
+            try:
+                mavlink_sock.sendto(heartbeat_pkt, ('127.0.0.1', 14552))
+            except Exception:
+                pass
+
         new_state_received = False
         if s is not None:
             if not _mavrik_state_valid(s):
@@ -818,8 +898,9 @@ def run(config_path: str):
                     _t_offset = (time.time() - bridge_start) - latest_state.t
                     to_json.reset()  # clear synthetic accel history so first real frame bootstraps cleanly
                     print(f"  [Bridge] MAVRIK connected (t_offset={_t_offset:.2f}s)")
-                roll, pitch, yaw = quat_to_euler(s.e0, s.ex, s.ey, s.ez)
-                pwm_map.set_state(pitch, roll, yaw, s.q, s.p, s.r)
+                q_ned = (s.e0, s.ex, -s.ey, -s.ez)
+                roll, pitch, yaw = quat_to_euler(*q_ned)
+                pwm_map.set_state(pitch, roll, yaw, s.q, s.p, -s.r)
                 pwm_map.set_velocity(s.u, s.v)
 
         # ── Step 1: deliver controls to MAVRIK immediately (no blocking delays) ──────
@@ -878,7 +959,8 @@ def run(config_path: str):
                     print("  [Bridge] Grace ended — AP with floor+blend active.")
                 if frame is not None:
                     # Blend: for 3s after handover, mix pre-arm trim with AP output.
-                    # Permanent floor=0.38 prevents sub-hover motor commands after blend.
+                    # Flaps-based dynamic floor prevents sub-hover motor drop in hover,
+                    # but scales down to 0.0 in transition to allow complete motor shutoff.
                     BLEND_SECS = 3.0
                     HOVER_FLOOR = 0.38
                     CEILING_RISE_SECS = 1.5
@@ -887,11 +969,19 @@ def run(config_path: str):
                     t_ceil = min(1.0, t_since / CEILING_RISE_SECS)
                     HOVER_CEILING = HOVER_FLOOR + (1.0 - HOVER_FLOOR) * t_ceil
                     ap_ctrl = pwm_map.map(frame.pwm)
+                    
+                    is_vtol_mode = current_flight_mode in (17, 18, 19, 20, 21, 22, 23)
+                    if is_vtol_mode:
+                        flaps_val = min(ap_ctrl[7], ap_ctrl[8])
+                        current_floor = HOVER_FLOOR * max(0.0, min(1.0, flaps_val / VTOL_FLAP))
+                    else:
+                        current_floor = 0.0
+
                     pre_last = getattr(pwm_map, '_pre_arm_last', None)
                     blended = list(ap_ctrl)
                     for i in range(9):
                         if i in (3, 4, 5, 6):  # motors
-                            blended[i] = min(HOVER_CEILING, max(HOVER_FLOOR, ap_ctrl[i]))
+                            blended[i] = min(HOVER_CEILING, max(current_floor, ap_ctrl[i]))
                             if pre_last is not None and blend < 1.0:
                                 blended[i] = (1.0 - blend) * pre_last[i] + blend * blended[i]
                         else:  # aero surfaces
@@ -916,16 +1006,21 @@ def run(config_path: str):
             else:
                 # Phase 2 and 3: MAVRIK is connected, ONLY send when a new state packet is received
                 if new_state_received:
-                    if not pwm_map.has_armed:
-                        payload = to_json.build(make_level_proxy(latest_state),
-                                                override_t=latest_state.t + _t_offset)
-                    else:
+                    # Flight modes list for reference:
+                    # 17: QSTABILIZE, 18: QHOVER, 19: QLOITER, 20: QLAND, 21: QRTL, 22: QAUTOTUNE, 23: QACRO
+                    is_vtol_mode = current_flight_mode in (17, 18, 19, 20, 21, 22, 23)
+                    
+                    if is_vtol_mode:
                         # Zero body velocities: MAVRIK hovers at 12fps forward.
                         # AP must not see this to avoid velocity-braking nose-up.
+                        # Send real attitude and rates from the very start to prevent any handover EKF shock!
                         import copy as _cp
                         no_vel = _cp.copy(latest_state)
                         no_vel.u = 0.0; no_vel.v = 0.0; no_vel.w = 0.0
                         payload = to_json.build(no_vel, override_t=latest_state.t + _t_offset)
+                    else:
+                        # Forward/transition modes: send actual velocities and airspeed
+                        payload = to_json.build(latest_state, override_t=latest_state.t + _t_offset)
                     send_to_ap = True
                     
             if send_to_ap and payload is not None:

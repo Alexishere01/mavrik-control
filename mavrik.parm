@@ -164,7 +164,7 @@ Q_M_THST_HOVER 0.40
 # --- FIXED WING & TRANSITION SAFETY ---
 # ==========================================
 # Transferred from unloaded tailless tests
-Q_TILT_MAX 45
+Q_TILT_MAX 90
 Q_TRANSITION_MS 2000
 Q_M_SPIN_MAX 0.90
 
