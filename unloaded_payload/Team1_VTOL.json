@@ -1,0 +1,511 @@
+{
+    "components": {
+        "fuselage": {
+            "type": "cuboid",
+            "lengths[ft]": [
+                8.004265348,
+                8.117126244,
+                2.008530248,
+                0.0,
+                0.0,
+                0.0
+            ],
+            "location[ft]": [
+                1.15,
+                0.0,
+                0.0
+            ],
+            "attitude[deg]": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "include_aero": true,
+            "weight[lbf]": 15.432339999999998
+        },
+        "main_wing": {
+            "type": "wing",
+            "location[ft]": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "attitude[deg]": [
+                0,
+                0,
+                0
+            ],
+            "dy[ft]": 0,
+            "semispan[ft]": 3.6089240000000005,
+            "chord[ft]": [
+                1.64042,
+                1.64042
+            ],
+            "mounting_angle[deg]": 5.0,
+            "Cm0": -0.35478,
+            "Cma": -1.4934,
+            "thickness": [
+                0.09,
+                0.09
+            ],
+            "side": "both",
+            "weight[lbf]": 6.613859999999999,
+            "control_surface": "aileron"
+        },
+        "h_stab": {
+            "type": "wing",
+            "location[ft]": [
+                -6.000000192,
+                0.0,
+                0.0
+            ],
+            "attitude[deg]": [
+                0,
+                0,
+                0
+            ],
+            "dy[ft]": 0,
+            "semispan[ft]": 2.074803216,
+            "chord[ft]": [
+                0.818897664,
+                0.818897664
+            ],
+            "mounting_angle[deg]": 0,
+            "Cm0": 0,
+            "Cma": 0,
+            "thickness": [
+                0.09,
+                0.09
+            ],
+            "side": "both",
+            "weight[lbf]": 2.20462,
+            "control_surface": "elevator",
+            "control_symmetric": true
+        },
+        "v_stab": {
+            "type": "wing",
+            "location[ft]": [
+                -6.000000192,
+                0.0,
+                0.0
+            ],
+            "attitude[deg]": [
+                0,
+                0,
+                0
+            ],
+            "dy[ft]": 2.074803216,
+            "semispan[ft]": 1.449475112,
+            "chord[ft]": [
+                1.096128644,
+                1.096128644
+            ],
+            "mounting_angle[deg]": 0,
+            "dihedral[deg]": 90,
+            "Cm0": 0,
+            "Cma": 0,
+            "thickness": [
+                0.09,
+                0.09
+            ],
+            "side": "both",
+            "weight[lbf]": 1.10231,
+            "control_surface": "rudder",
+            "control_symmetric": false
+        },
+        "motor_tilt_right": {
+            "type": "cylinder",
+            "include_aero": false,
+            "weight[lbf]": 2.425082,
+            "lengths[ft]": [
+                2.666666752,
+                0.0,
+                0.083333336
+            ],
+            "location[ft]": [
+                1.73946199792,
+                3.8827002554799996,
+                0.14655184196
+            ],
+            "attitude[deg]": {
+                "polynomials": {
+                    "bank": {
+                        "0": 0
+                    },
+                    "elevation[deg]": {
+                        "0": 0,
+                        "flapsRight": 90
+                    },
+                    "heading": {
+                        "0": 0
+                    }
+                }
+            }
+        },
+        "motor_tilt_right_custom": {
+            "type": "custom",
+            "location[ft]": [
+                1.73946199792,
+                3.8827002554799996,
+                0.14655184196
+            ],
+            "attitude[deg]": {
+                "polynomials": {
+                    "bank": {
+                        "0": 0
+                    },
+                    "elevation[deg]": {
+                        "0": 0,
+                        "flapsRight": 90
+                    },
+                    "heading": {
+                        "0": 0
+                    }
+                }
+            },
+            "aerodynamics": {
+                "reference": {
+                    "area": 1,
+                    "longitudinal_length": 1,
+                    "lateral_length": 1,
+                    "moment_reference_location": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "thrusts": {
+                    "Cx": {
+                        "Ta": 0.0,
+                        "T0": 99.24,
+                        "independent_variable": "throttleFwdRight"
+                    }
+                },
+                "polynomials": {
+                    "Cl": {
+                        "throttleFwdRight": -6.6
+                    }
+                }
+            },
+            "mass": 0
+        },
+        "motor_tilt_left": {
+            "type": "cylinder",
+            "include_aero": false,
+            "weight[lbf]": 2.425082,
+            "lengths[ft]": [
+                2.666666752,
+                0.0,
+                0.083333336
+            ],
+            "location[ft]": [
+                1.73946199792,
+                -3.8827002554799996,
+                0.14655184196
+            ],
+            "attitude[deg]": {
+                "polynomials": {
+                    "bank": {
+                        "0": 0
+                    },
+                    "elevation[deg]": {
+                        "0": 0,
+                        "flapsLeft": 90
+                    },
+                    "heading": {
+                        "0": 0
+                    }
+                }
+            }
+        },
+        "motor_tilt_left_custom": {
+            "type": "custom",
+            "location[ft]": [
+                1.73946199792,
+                -3.8827002554799996,
+                0.14655184196
+            ],
+            "attitude[deg]": {
+                "polynomials": {
+                    "bank": {
+                        "0": 0
+                    },
+                    "elevation[deg]": {
+                        "0": 0,
+                        "flapsLeft": 90
+                    },
+                    "heading": {
+                        "0": 0
+                    }
+                }
+            },
+            "aerodynamics": {
+                "reference": {
+                    "area": 1,
+                    "longitudinal_length": 1,
+                    "lateral_length": 1,
+                    "moment_reference_location": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "thrusts": {
+                    "Cx": {
+                        "Ta": 0.0,
+                        "T0": 99.24,
+                        "independent_variable": "throttleFwdLeft"
+                    }
+                },
+                "polynomials": {
+                    "Cl": {
+                        "throttleFwdLeft": 6.6
+                    }
+                }
+            },
+            "mass": 0
+        },
+        "motor_vtol_right": {
+            "type": "cylinder",
+            "include_aero": false,
+            "weight[lbf]": 2.425082,
+            "lengths[ft]": [
+                2.666666752,
+                0.0,
+                0.083333336
+            ],
+            "location[ft]": [
+                -1.8925623965199998,
+                3.8827002554799996,
+                -0.09469160407999999
+            ],
+            "attitude[deg]": [
+                0,
+                90,
+                0
+            ]
+        },
+        "motor_vtol_right_custom": {
+            "type": "custom",
+            "location[ft]": [
+                -1.8925623965199998,
+                3.8827002554799996,
+                -0.09469160407999999
+            ],
+            "attitude[deg]": [
+                0,
+                90,
+                0
+            ],
+            "aerodynamics": {
+                "reference": {
+                    "area": 1,
+                    "longitudinal_length": 1,
+                    "lateral_length": 1,
+                    "moment_reference_location": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "thrusts": {
+                    "Cx": {
+                        "Ta": 0.0,
+                        "T0": 99.24,
+                        "independent_variable": "throttleAftRight"
+                    }
+                },
+                "polynomials": {
+                    "Cl": {
+                        "throttleAftRight": 6.6
+                    }
+                }
+            },
+            "mass": 0
+        },
+        "motor_vtol_left": {
+            "type": "cylinder",
+            "include_aero": false,
+            "weight[lbf]": 2.425082,
+            "lengths[ft]": [
+                2.666666752,
+                0.0,
+                0.083333336
+            ],
+            "location[ft]": [
+                -1.8925623965199998,
+                -3.8827002554799996,
+                -0.09469160407999999
+            ],
+            "attitude[deg]": [
+                0,
+                90,
+                0
+            ]
+        },
+        "motor_vtol_left_custom": {
+            "type": "custom",
+            "location[ft]": [
+                -1.8925623965199998,
+                -3.8827002554799996,
+                -0.09469160407999999
+            ],
+            "attitude[deg]": [
+                0,
+                90,
+                0
+            ],
+            "aerodynamics": {
+                "reference": {
+                    "area": 1,
+                    "longitudinal_length": 1,
+                    "lateral_length": 1,
+                    "moment_reference_location": [
+                        0,
+                        0,
+                        0
+                    ]
+                },
+                "thrusts": {
+                    "Cx": {
+                        "Ta": 0.0,
+                        "T0": 99.24,
+                        "independent_variable": "throttleAftLeft"
+                    }
+                },
+                "polynomials": {
+                    "Cl": {
+                        "throttleAftLeft": -6.6
+                    }
+                }
+            },
+            "mass": 0
+        },
+        "battery": {
+            "type": "cuboid",
+            "include_aero": false,
+            "lengths[ft]": [
+                0.9842519999999999,
+                0.49212599999999995,
+                0.32808400000000004,
+                0.0,
+                0.0,
+                0.0
+            ],
+            "location[ft]": [
+                0.18463091142,
+                0.0,
+                -0.10125328408
+            ],
+            "weight[lbf]": 14.50627393666
+        },
+        "payload_slot": {
+            "type": "cuboid",
+            "include_aero": false,
+            "lengths[ft]": [
+                0.32808400000000004,
+                0.32808400000000004,
+                0.32808400000000004,
+                0.0,
+                0.0,
+                0.0
+            ],
+            "location[ft]": [
+                0.16,
+                0.0,
+                -0.69421262064
+            ],
+            "weight[lbf]": 0.0
+        }
+    },
+    "control_effectors": {
+        "aileron": {
+            "magnitude_limits[deg]": [
+                -15.0,
+                15.0
+            ],
+            "rate_limits[deg/s]": [
+                -200.0,
+                200.0
+            ],
+            "time_constant": 0.01
+        },
+        "elevator": {
+            "magnitude_limits[deg]": [
+                -15.0,
+                15.0
+            ],
+            "rate_limits[deg/s]": [
+                -200.0,
+                200.0
+            ],
+            "time_constant": 0.01
+        },
+        "rudder": {
+            "magnitude_limits[deg]": [
+                -30.0,
+                30.0
+            ],
+            "rate_limits[deg/s]": [
+                -200.0,
+                200.0
+            ],
+            "time_constant": 0.01
+        },
+        "throttleFwdRight": {
+            "magnitude_limits": [
+                0,
+                1
+            ],
+            "time_constant": 0.1
+        },
+        "throttleFwdLeft": {
+            "magnitude_limits": [
+                0,
+                1
+            ],
+            "time_constant": 0.1
+        },
+        "throttleAftRight": {
+            "magnitude_limits": [
+                0,
+                1
+            ],
+            "time_constant": 0.1
+        },
+        "throttleAftLeft": {
+            "magnitude_limits": [
+                0,
+                1
+            ],
+            "time_constant": 0.1
+        },
+        "flapsRight": {
+            "magnitude_limits": [
+                0,
+                1
+            ],
+            "rate_limit": [
+                -0.2,
+                0.2
+            ],
+            "time_constant": 0.1
+        },
+        "flapsLeft": {
+            "magnitude_limits": [
+                0,
+                1
+            ],
+            "rate_limit": [
+                -0.2,
+                0.2
+            ],
+            "time_constant": 0.1
+        }
+    },
+    "reference": {
+        "area[ft^2]": 11.840302216160001,
+        "longitudinal_length[ft]": 1.64042,
+        "lateral_length[ft]": 7.217848000000001
+    }
+}

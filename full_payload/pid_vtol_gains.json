@@ -1,0 +1,356 @@
+{
+    "description": "Team1 hover gains v2 - trim values match Team1 geometry, pitch_rate kp scaled for actual Iyy (~8.7 slug*ft^2 from MAVRIK component model, NOT the suspect 0.45 from CAD).",
+    "loop_rate_hz": 50,
+    "mode": "hover",
+    "flaps_value": 0.99,
+    "trim": {
+        "description": "Asymmetric trim for Team1_VTOL.json loaded payload (forward CG).",
+        "throttle": 0.60,
+        "throttle_fwd": 0.130,
+        "throttle_aft": 0.120,
+        "aileron_deg": 0.0,
+        "elevator_deg": 0.0,
+        "rudder_deg": 0.0
+    },
+    "safety": {
+        "max_throttle_step": 0.05,
+        "max_surface_step_deg": 5.0,
+        "ramp_in_seconds": 2.0,
+        "warmup_seconds": 5.0
+    },
+    "altitude": {
+        "tuning_note": "Bumped kp 0.3->0.5, kd 0.1->0.15 for faster altitude step response. Previous run showed ~15s to reach 8/10 ft — targeting ~8s.",
+        "kp": 0.5,
+        "ki": 0.05,
+        "kd": 0.15,
+        "output_min": -5.0,
+        "output_max": 5.0,
+        "integrator_max": 10.0
+    },
+    "climb_rate": {
+        "tuning_note": "Bumped kp 0.02->0.04 for more aggressive collective response. ki stays the same to avoid steady-state drift.",
+        "kp": 0.04,
+        "ki": 0.005,
+        "kd": 0.0,
+        "output_min": -0.35,
+        "output_max": 0.35,
+        "integrator_max": 5.0
+    },
+    "roll_attitude": {
+        "kp": 1.5,
+        "ki": 0.0,
+        "kd": 0.5,
+        "output_min": -15.0,
+        "output_max": 15.0
+    },
+    "roll_rate": {
+        "tuning_note": "demo Ixx=195 slug*ft^2 with kp=0.006. Team1 Ixx printed by MAVRIK ~ check from new mass-properties output. Estimated ~8 slug*ft^2 -> kp ~ 0.006 * 8/195 = 0.00025. Use this as starting point.",
+        "kp": 0.001,
+        "ki": 0.0001,
+        "kd": 0.0,
+        "output_min": -0.15,
+        "output_max": 0.15,
+        "integrator_max": 3.0
+    },
+    "pitch_attitude": {
+        "kp": 3.0,
+        "ki": 0.5,
+        "kd": 0.2,
+        "output_min": -40.0,
+        "output_max": 40.0,
+        "integrator_max": 5.0
+    },
+    "pitch_rate": {
+        "tuning_note": "Bumped kp to 0.003 for stronger pitch authority. Increased output_max to 0.15 for more differential throttle.",
+        "kp": 0.003,
+        "ki": 0.0001,
+        "kd": 5e-05,
+        "output_min": -0.15,
+        "output_max": 0.15,
+        "integrator_max": 3.0
+    },
+    "u_velocity": {
+        "enabled": true,
+        "kp": 0.15,
+        "ki": 0.005,
+        "kd": 0.0,
+        "output_min": -5.0,
+        "output_max": 5.0,
+        "integrator_max": 5.0
+    },
+    "yaw_attitude": {
+        "enabled": true,
+        "tuning_note": "Outer loop: Drives slow arms tilt (flaps). Output limit 0.25. kp=0.01 provides proportional tilt to heading error.",
+        "kp": 0.01,
+        "ki": 0.001,
+        "kd": 0.01,
+        "output_min": -0.25,
+        "output_max": 0.25,
+        "integrator_max": 0.1
+    },
+    "yaw_rate": {
+        "tuning_note": "Inner loop: Drives fast differential yaw thrust. Output limit 0.15. Damps rotation jitter.",
+        "kp": 0.01,
+        "ki": 0.0,
+        "kd": 0.001,
+        "output_min": -0.15,
+        "output_max": 0.15,
+        "integrator_max": 0.05
+    },
+    "yaw_mixer": {
+        "throttle_gain": 1.0,
+        "flaps_gain": 1.0,
+        "_note": "throttle_gain scales the rate PID output before applying to differential throttle. flaps_gain scales the proportional flaps differential from heading error. Both default to 1.0 — adjust to balance the two yaw mechanisms."
+    },
+    "setpoints": {
+        "description": "Full test sequence: hover settle -> roll test -> alt step -> yaw test -> settle",
+        "schedule": [
+            {
+                "time": 0.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 250.0,
+                "psi_deg": 0.0,
+                "u_ft_s": 0.0,
+                "_note": "Hover settle (warmup 5s + 25s steady)"
+            },
+            {
+                "time": 30.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 250.0,
+                "u_ft_s": 0.0
+            },
+            {
+                "time": 40.0,
+                "phi_deg": 5.0,
+                "theta_deg": 0.0,
+                "alt_ft": 250.0,
+                "u_ft_s": 0.0,
+                "_note": "Roll test: 5deg right"
+            },
+            {
+                "time": 55.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 250.0,
+                "u_ft_s": 0.0,
+                "_note": "Return to wings-level"
+            },
+            {
+                "time": 70.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 260.0,
+                "u_ft_s": 0.0,
+                "_note": "Altitude step: +10 ft"
+            },
+            {
+                "time": 90.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 250.0,
+                "u_ft_s": 0.0,
+                "_note": "Return to 250 ft"
+            },
+            {
+                "time": 100.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 250.0,
+                "psi_deg": 15.0,
+                "u_ft_s": 0.0,
+                "_note": "Yaw test: 15deg heading change"
+            },
+            {
+                "time": 120.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 250.0,
+                "psi_deg": 0.0,
+                "u_ft_s": 0.0,
+                "_note": "Return to 0deg heading"
+            },
+            {
+                "time": 140.0,
+                "phi_deg": 0.0,
+                "theta_deg": 10.0,
+                "alt_ft": 250.0,
+                "psi_deg": 0.0,
+                "u_ft_s": 0.0,
+                "_note": "Pitch test: 10deg nose UP (should slow down/drift backwards)"
+            },
+            {
+                "time": 155.0,
+                "phi_deg": 0.0,
+                "theta_deg": -10.0,
+                "alt_ft": 250.0,
+                "psi_deg": 0.0,
+                "u_ft_s": 0.0,
+                "_note": "Pitch test: 10deg nose DOWN (should accelerate forward)"
+            },
+            {
+                "time": 170.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 250.0,
+                "psi_deg": 0.0,
+                "u_ft_s": 0.0,
+                "_note": "Recover to hover"
+            },
+            {
+                "time": 180.0,
+                "phi_deg": 15.0,
+                "theta_deg": 0.0,
+                "alt_ft": 250.0,
+                "psi_deg": 0.0,
+                "u_ft_s": 0.0,
+                "_note": "Roll test: 15deg right"
+            },
+            {
+                "time": 190.0,
+                "phi_deg": -15.0,
+                "theta_deg": 0.0,
+                "alt_ft": 250.0,
+                "psi_deg": 0.0,
+                "u_ft_s": 0.0,
+                "_note": "Roll test: 15deg left"
+            },
+            {
+                "time": 200.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 250.0,
+                "psi_deg": 0.0,
+                "u_ft_s": 0.0,
+                "_note": "Recover to hover"
+            },
+            {
+                "time": 210.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 250.0,
+                "psi_deg": 90.0,
+                "u_ft_s": 0.0,
+                "_note": "360 Yaw Test: 90 deg"
+            },
+            {
+                "time": 220.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 250.0,
+                "psi_deg": 179.0,
+                "u_ft_s": 0.0,
+                "_note": "360 Yaw Test: 180 deg"
+            },
+            {
+                "time": 230.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 250.0,
+                "psi_deg": 270.0,
+                "u_ft_s": 0.0,
+                "_note": "360 Yaw Test: 270 deg"
+            },
+            {
+                "time": 240.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 250.0,
+                "psi_deg": 0.0,
+                "u_ft_s": 0.0,
+                "_note": "360 Yaw Test: 0 deg (complete rotation)"
+            },
+            {
+                "time": 250.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 250.0,
+                "psi_deg": 0.0,
+                "u_ft_s": 20.0,
+                "_note": "Velocity test: Command 20 ft/s forward via pitch nudging"
+            },
+            {
+                "time": 270.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 250.0,
+                "psi_deg": 0.0,
+                "u_ft_s": 0.0,
+                "_note": "Final settle to zero velocity"
+            },
+            {
+                "time": 285.0,
+                "phi_deg": 30.0,
+                "theta_deg": 0.0,
+                "alt_ft": 250.0,
+                "psi_deg": 0.0,
+                "u_ft_s": 0.0,
+                "_note": "Extreme roll: 30deg right"
+            },
+            {
+                "time": 295.0,
+                "phi_deg": -30.0,
+                "theta_deg": 0.0,
+                "alt_ft": 250.0,
+                "psi_deg": 0.0,
+                "u_ft_s": 0.0,
+                "_note": "Extreme roll: 30deg left"
+            },
+            {
+                "time": 305.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 250.0,
+                "psi_deg": 0.0,
+                "u_ft_s": 30.0,
+                "_note": "Aggressive speed: Command 30 ft/s forward"
+            },
+            {
+                "time": 320.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 250.0,
+                "psi_deg": 90.0,
+                "u_ft_s": 30.0,
+                "_note": "Hard yaw while moving 30 ft/s"
+            },
+            {
+                "time": 335.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 100.0,
+                "psi_deg": 90.0,
+                "u_ft_s": 0.0,
+                "_note": "Aggressive drop to 100 ft"
+            },
+            {
+                "time": 350.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 300.0,
+                "psi_deg": 0.0,
+                "u_ft_s": 0.0,
+                "_note": "Aggressive climb to 300 ft and return heading"
+            },
+            {
+                "time": 370.0,
+                "phi_deg": 0.0,
+                "theta_deg": 0.0,
+                "alt_ft": 250.0,
+                "psi_deg": 0.0,
+                "u_ft_s": 0.0,
+                "_note": "Final settle to 250 ft hover"
+            }
+        ]
+    },
+    "ports": {
+        "state_receive": 5007,
+        "control_send": 5006,
+        "control_ip": "127.0.0.1"
+    },
+    "logging": {
+        "filename": "pid_log.csv",
+        "rate_hz": 30
+    }
+}
