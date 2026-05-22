@@ -17,11 +17,11 @@
         ],
         "turbulence": {
             "type": "direct",
-            "Vmin[kts]": 2,
+            "Vmin[kts]": 0,
             "Lh[in]": 56,
             "Lv[ft]": 4.5,
             "span[m]": 4,
-            "sigma[ft/s]": 2,
+            "sigma[ft/s]": 0,
             "probability_of_exceedance": 1e-3,
             "memory_size": 20
         }
@@ -51,10 +51,10 @@
                     "rudder[deg]": 0,
                     "flapsRight": 0.99,
                     "flapsLeft": 0.99,
-                    "throttleFwdRight": 0.394,
-                    "throttleFwdLeft": 0.394,
-                    "throttleAftRight": 0.410,
-                    "throttleAftLeft": 0.410
+                    "throttleFwdRight": 0.130,
+                    "throttleFwdLeft": 0.130,
+                    "throttleAftRight": 0.120,
+                    "throttleAftLeft": 0.120
                 }
             }
         }

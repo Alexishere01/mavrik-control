@@ -415,7 +415,7 @@
                 0.0,
                 -0.69421262064
             ],
-            "weight[lbf]": 0.0
+            "weight[lbf]": 100.0
         }
     },
     "control_effectors": {

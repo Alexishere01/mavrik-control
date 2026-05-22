@@ -58,9 +58,9 @@ PRE_ARM_FREEFALL = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, VTOL_FLAP, VTOL_FLAP)
 # Hover trim from Team1_VTOL.json — sent once MAVRIK is connected but before arming.
 # This matches the physics-engine equilibrium exactly, so MAVRIK holds ~0° pitch/roll
 # and we arm with near-level attitude instead of the ~30° freefall drift.
-PRE_ARM_HOVER = (0.0, 0.0, 0.0, 0.122, 0.122, 0.127, 0.127, VTOL_FLAP, VTOL_FLAP)
+PRE_ARM_HOVER = (0.0, 0.0, 0.0, 0.410, 0.410, 0.342, 0.342, VTOL_FLAP, VTOL_FLAP)
 
-PRE_ARM_HOVER_LEVEL = 0.125   # kept for ground_hold_controls() reference only
+PRE_ARM_HOVER_LEVEL = 0.40   # kept for ground_hold_controls() reference only
 PRE_ARM_KP          = 0.6
 PRE_ARM_KD          = 0.05
 
@@ -380,20 +380,20 @@ class PWMMapper:
         # AP pitch-up  raises CH2+CH4 → thrFL+thrFR (fwd motors)  UP → nose UP  ✓
         #
         # Confirmed from bridge_diag.csv 2026-05-11: ap_split<0 (CH2>CH1) → pitch UP.
-        # Corrected Mapping (ArduPlane QuadX -> MAVRIK Team1_VTOL):
-        # AP CH1 = Front-Right -> MAVRIK Fwd-Right (thr_fr)
-        # AP CH2 = Rear-Left   -> MAVRIK Aft-Left  (thr_al)
-        # AP CH3 = Front-Left  -> MAVRIK Fwd-Left  (thr_fl)
-        # AP CH4 = Rear-Right  -> MAVRIK Aft-Right (thr_ar)
-        thr_fr = pwm_to_normalized(pwm[0])  # CH1 -> MAVRIK Fwd-Right
-        thr_al = pwm_to_normalized(pwm[1])  # CH2 -> MAVRIK Aft-Left
-        thr_fl = pwm_to_normalized(pwm[2])  # CH3 -> MAVRIK Fwd-Left
-        thr_ar = pwm_to_normalized(pwm[3])  # CH4 -> MAVRIK Aft-Right
+        # Swapped Front/Rear channels to invert the pitch feedback loop to negative feedback:
+        # Front motors (Index 3/4) get Rear commands thr_al/thr_ar -> so thr_al/thr_ar must have +0.034 trim.
+        # Rear motors (Index 5/6) get Front commands thr_fr/thr_fl -> so thr_fr/thr_fl must have -0.034 trim.
+        thr_fr = pwm_to_normalized(pwm[0]) - 0.034  # CH1 -> MAVRIK Rear-Right (index 5)
+        thr_al = pwm_to_normalized(pwm[1]) + 0.034  # CH2 -> MAVRIK Front-Left (index 3)
+        thr_fl = pwm_to_normalized(pwm[2]) - 0.034  # CH3 -> MAVRIK Rear-Left (index 6)
+        thr_ar = pwm_to_normalized(pwm[3]) + 0.034  # CH4 -> MAVRIK Front-Right (index 4)
 
         # Pass-through: Aero surfaces from CH5-CH7
+        # Standard aerodynamic deflections (positive commands trailing-edge down/left to pitch/roll down/left)
+        # match ArduPilot's physical servo outputs, so keep them original (non-inverted).
         aileron  = pwm_to_symmetric(pwm[4]) * 15.0  # CH5
         elevator = pwm_to_symmetric(pwm[5]) * 15.0  # CH6
-        rudder   = pwm_to_symmetric(pwm[6]) * 15.0  # CH7
+        rudder   = pwm_to_symmetric(pwm[6]) * 15.0   # CH7
 
         # Tilt servos from CH8-CH9 (Ardupilot TiltMotorLeft/Right).
         # ArduPilot: 1000=VTOL hover (motors up), 2000=FW (motors forward).
@@ -403,16 +403,32 @@ class PWMMapper:
         # Cap result at VTOL_FLAP: AP sends 1000 (SERVO_MIN) in modes that don't
         # use vectored yaw, which would produce 1.0 (backward tilt). MAVRIK has no
         # backward-tilt range so clamp to 0.99.
+        # ArduPilot commands nominal 1142 us in hover with Q_TILT_YAW_ANGLE=15.
+        # Shift the active range so that 1142 us maps exactly to fully vertical (VTOL_FLAP=0.99).
+        # Any value <= 1142 remains fully vertical (0.99).
+        # Linear scaling from (1142, 0.99) to (2000, 0.0).
         def _tilt(pwm_us: int) -> float:
-            return min(VTOL_FLAP, 1.0 - pwm_to_normalized(pwm_us))
-        flaps_l = _tilt(pwm[7])  # CH8
-        flaps_r = _tilt(pwm[8])  # CH9
+            if pwm_us <= 1142:
+                return VTOL_FLAP
+            fraction = (pwm_us - 1142) / (2000 - 1142)
+            return max(0.0, VTOL_FLAP * (1.0 - fraction))
+        flaps_l = _tilt(pwm[7])  # CH8 -> MAVRIK Flaps-Left (original)
+        flaps_r = _tilt(pwm[8])  # CH9 -> MAVRIK Flaps-Right (original)
 
         # MAVRIK packet order (Team1_VTOL.json control_effectors):
         #   [0]=aileron [1]=elevator [2]=rudder
-        #   [3]=throttleFwdRight [4]=throttleFwdLeft [5]=throttleAftRight [6]=throttleAftLeft
+        #   [3]=throttleFwdRight (physically Front-LEFT, y = -6.6)
+        #   [4]=throttleFwdLeft  (physically Front-RIGHT, y = +6.6)
+        #   [5]=throttleAftRight (physically Rear-RIGHT, y = +6.6)
+        #   [6]=throttleAftLeft  (physically Rear-LEFT, y = -6.6)
         #   [7]=flapsRight [8]=flapsLeft
-        ctrl = (aileron, elevator, rudder, thr_fr, thr_fl, thr_ar, thr_al, flaps_r, flaps_l)
+        # Physically correct, stable mapping matching ArduPilot QuadX (CH1=FR, CH2=AL, CH3=FL, CH4=AR):
+        # Swapped Front/Rear channels to invert the pitch feedback loop to negative feedback:
+        # Index 3 (Front-Left)  gets thr_al (Rear-Left command CH2)
+        # Index 4 (Front-Right) gets thr_ar (Rear-Right command CH4)
+        # Index 5 (Rear-Right)  gets thr_fr (Front-Right command CH1)
+        # Index 6 (Rear-Left)   gets thr_fl (Front-Left command CH3)
+        ctrl = (aileron, elevator, rudder, thr_al, thr_ar, thr_fr, thr_fl, flaps_r, flaps_l)
         self.last_controls = ctrl
         return ctrl
 
@@ -595,14 +611,16 @@ class StateToJSON:
 
         t_out = override_t if override_t is not None else s.t
 
+        # Invert roll and pitch axis inputs sent to ArduPilot (including ax and ay)
+        # to match ArduPilot's right-handed NED system with MAVRIK's coordinate systems. Keep yaw and accel_z original.
         return {
             "timestamp": t_out,
             "imu": {
-                "gyro":       [s.p, s.q, s.r],
-                "accel_body": [ax, ay, az],
+                "gyro":       [-s.p, -s.q, s.r],
+                "accel_body": [-ax, -ay, az],
             },
             "position":   [pn, pe, pd],
-            "attitude":   [roll, pitch, yaw],
+            "attitude":   [-roll, -pitch, yaw],
             "velocity":   [vn, ve, vd],
         }
 
@@ -779,6 +797,7 @@ def run(config_path: str):
 
         # Drain any MAVRIK state packets regardless of whether ArduPilot is active
         s = mx.poll_latest_state()
+        new_state_received = False
         if s is not None:
             if not _mavrik_state_valid(s):
                 # Garbage packet from MAVRIK startup/crash — discard and reset counter
@@ -789,6 +808,7 @@ def run(config_path: str):
                 _mavrik_valid_count += 1
                 _last_mavrik_rx = now
                 latest_state = s
+                new_state_received = True
                 if not _mavrik_connected and _mavrik_valid_count >= 3:
                     _mavrik_connected = True
                     pre_arm_ctrl.reset()   # restart ramp from the moment MAVRIK connects
@@ -829,19 +849,18 @@ def run(config_path: str):
                 if any(p > 1000 for p in frame.pwm[:4]):
                     pwm_map._ap_has_armed = True
                     print(f"  [Bridge] AP armed (pwm={frame.pwm[:4]}) — handing over immediately...")
-            # Handover gate: hover thrust + near-level attitude.
+            # Handover gate: trigger IMMEDIATELY when AP arms (attitude gate removed).
+            # Removed the roll/pitch gate — it caused 15-30s delay during which
+            # the vehicle sat uncorrected. Handover now occurs on first armed frame.
             if pwm_map._ap_has_armed and frame is not None and latest_state is not None:
-                roll_deg  = math.degrees(abs(pwm_map._roll))
-                pitch_deg = math.degrees(abs(pwm_map._pitch))
-                real_alt_ft = -latest_state.zf
-                if roll_deg > 15.0 or pitch_deg > 15.0:
-                    print(f"  [Gate] waiting attitude: R={roll_deg:.1f}° P={pitch_deg:.1f}°", end='\r')
-                else:
+                if not pwm_map.has_armed:
                     pwm_map.has_armed = True
+                    pwm_map._handover_t = now      # for blend window tracking
                     _handover_grace_until = now + HANDOVER_GRACE_SECS
-                    _soft_floor_until     = now + HANDOVER_GRACE_SECS + 0.50  # 500ms soft floor after grace
-                    to_json.reset()  # clear accel history so first live frame is clean
-                    print(f"\n  [Bridge] Handover: roll={roll_deg:.1f}° pitch={pitch_deg:.1f}° "
+                    _soft_floor_until     = now + HANDOVER_GRACE_SECS + 0.50
+                    to_json.reset()
+                    real_alt_ft = -latest_state.zf
+                    print(f"\n  [Bridge] Handover: roll={math.degrees(pwm_map._roll):.1f}° pitch={math.degrees(pwm_map._pitch):.1f}° "
                           f"alt={real_alt_ft:.0f}ft "
                           f"pwm=[{frame.pwm[0]},{frame.pwm[1]},{frame.pwm[2]},{frame.pwm[3]}]\n")
                     _stop_sock.sendto(b'\x01', ('127.0.0.1', 5015))
@@ -849,38 +868,68 @@ def run(config_path: str):
                           f"Grace period: {HANDOVER_GRACE_SECS*1000:.0f}ms hover trim.")
         else:
             if now < _handover_grace_until:
-                # Grace period: keep the bridge's own PD controller active so
-                # pitch/roll are actively corrected while pid_vtol winds down (~20ms).
-                # Using constant PRE_ARM_HOVER caused pitch to drift unchecked,
-                # arriving at handover with several degrees of built-up error.
                 active_ctrl = pre_arm_ctrl.update(pwm_map._pitch, pwm_map._roll, pwm_map._q, pwm_map._p)
                 mx.send_controls(active_ctrl)
                 pwm_map.last_controls = active_ctrl
+                pwm_map._pre_arm_last = active_ctrl  # store for blend reference
             else:
                 if not getattr(pwm_map, '_grace_ended', False):
                     pwm_map._grace_ended = True
-                    print("  [Bridge] Grace ended — forwarding AP to MAVRIK directly.")
+                    print("  [Bridge] Grace ended — AP with floor+blend active.")
                 if frame is not None:
-                    controls = pwm_map.map(frame.pwm)
+                    # Blend: for 3s after handover, mix pre-arm trim with AP output.
+                    # Permanent floor=0.38 prevents sub-hover motor commands after blend.
+                    BLEND_SECS = 3.0
+                    HOVER_FLOOR = 0.38
+                    CEILING_RISE_SECS = 1.5
+                    t_since = now - getattr(pwm_map, '_handover_t', now)
+                    blend = min(1.0, t_since / BLEND_SECS)
+                    t_ceil = min(1.0, t_since / CEILING_RISE_SECS)
+                    HOVER_CEILING = HOVER_FLOOR + (1.0 - HOVER_FLOOR) * t_ceil
+                    ap_ctrl = pwm_map.map(frame.pwm)
+                    pre_last = getattr(pwm_map, '_pre_arm_last', None)
+                    blended = list(ap_ctrl)
+                    for i in range(9):
+                        if i in (3, 4, 5, 6):  # motors
+                            blended[i] = min(HOVER_CEILING, max(HOVER_FLOOR, ap_ctrl[i]))
+                            if pre_last is not None and blend < 1.0:
+                                blended[i] = (1.0 - blend) * pre_last[i] + blend * blended[i]
+                        else:  # aero surfaces
+                            if pre_last is not None and blend < 1.0:
+                                blended[i] = (1.0 - blend) * pre_last[i] + blend * ap_ctrl[i]
+                    controls = tuple(blended)
                     pwm_map.last_controls = controls
                     mx.send_controls(controls)
 
-        # ── Step 3: send state to ArduPilot at 200 Hz (rate-limited) ─────────────
-        # Phase 1 — no MAVRIK yet:  synthetic level state at spawn altitude.
-        # Phase 2 — pre-arm:        real altitude + forced level attitude.
-        # Phase 3 — armed:          real MAVRIK state.
-        if now >= next_ap_json and ap.last_reply_addr is not None:
-            next_ap_json = now + AP_JSON_INTERVAL
+        # ── Step 3: send state to ArduPilot (synced to MAVRIK or rate-limited in Phase 1) ──
+        if ap.last_reply_addr is not None:
+            send_to_ap = False
+            payload = None
+            
             if not _mavrik_connected:
-                payload = to_json.build(SYNTHETIC_INITIAL_STATE,
-                                        override_t=now - bridge_start)
-            elif not pwm_map.has_armed:
-                payload = to_json.build(make_level_proxy(latest_state),
-                                        override_t=latest_state.t + _t_offset)
+                # Phase 1: MAVRIK not connected yet, send synthetic level state at rate-limited 100Hz
+                if now >= next_ap_json:
+                    next_ap_json = now + AP_JSON_INTERVAL
+                    payload = to_json.build(SYNTHETIC_INITIAL_STATE,
+                                            override_t=now - bridge_start)
+                    send_to_ap = True
             else:
-                payload = to_json.build(latest_state,
-                                        override_t=latest_state.t + _t_offset)
-            ap.send_json(payload)
+                # Phase 2 and 3: MAVRIK is connected, ONLY send when a new state packet is received
+                if new_state_received:
+                    if not pwm_map.has_armed:
+                        payload = to_json.build(make_level_proxy(latest_state),
+                                                override_t=latest_state.t + _t_offset)
+                    else:
+                        # Zero body velocities: MAVRIK hovers at 12fps forward.
+                        # AP must not see this to avoid velocity-braking nose-up.
+                        import copy as _cp
+                        no_vel = _cp.copy(latest_state)
+                        no_vel.u = 0.0; no_vel.v = 0.0; no_vel.w = 0.0
+                        payload = to_json.build(no_vel, override_t=latest_state.t + _t_offset)
+                    send_to_ap = True
+                    
+            if send_to_ap and payload is not None:
+                ap.send_json(payload)
 
         # ── Step 4: yield CPU so we don't spin at 100% ───────────────────────────
         time.sleep(0.0005)   # 500 µs — loop runs at ~2 kHz, controls to MAVRIK every ~500 µs

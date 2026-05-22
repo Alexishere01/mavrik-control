@@ -143,7 +143,7 @@ DEFAULT_CONFIG = {
         "max_throttle_step": 0.05,
         "max_surface_step_deg": 5.0,
         "ramp_in_seconds": 2.0,
-        "warmup_seconds": 5.0,
+        "warmup_seconds": 0.5,
         "_note_ramp": (
             "For first ramp_in_seconds, blend controller output with pure trim. "
             "Prevents a startup-transient kick from saturating motors."
@@ -287,7 +287,8 @@ class VTOLController:
 
         # Trim
         t = c["trim"]
-        self.trim_throttle = t["throttle"]
+        self.trim_throttle_fwd = t.get("throttle_fwd", t.get("throttle", 0.60))
+        self.trim_throttle_aft = t.get("throttle_aft", t.get("throttle", 0.60))
         self.trim_ail = t["aileron_deg"]
         self.trim_ele = t["elevator_deg"]
         self.trim_rud = t["rudder_deg"]
@@ -299,7 +300,7 @@ class VTOLController:
         self.max_surf_step = s["max_surface_step_deg"]
         self.ramp_seconds = s["ramp_in_seconds"]
         self.warmup_seconds = s.get("warmup_seconds", 0.0)
-        self.last_thr = [self.trim_throttle, self.trim_throttle, self.trim_throttle, self.trim_throttle]
+        self.last_thr = [self.trim_throttle_fwd, self.trim_throttle_fwd, self.trim_throttle_aft, self.trim_throttle_aft]
         self.last_rud = self.trim_rud
 
         # Initial-state holders (populated on first state packet)
@@ -408,7 +409,7 @@ class VTOLController:
         print("=" * 72)
         print(f"  roll_rate kp={self.cfg['roll_rate']['kp']}  roll_att output_max={self.cfg['roll_attitude']['output_max']}")
         print(f"  Mode:           {c['mode']}  (base_flaps={self.base_flaps})")
-        print(f"  Trim throttle:  {self.trim_throttle:.3f}")
+        print(f"  Trim throttle:  FWD={self.trim_throttle_fwd:.3f}  AFT={self.trim_throttle_aft:.3f}")
         print(f"  Loop rate:      {self.loop_hz} Hz")
         print(f"  Rate limits:    {self.max_thr_step}/tick throttle, "
               f"{self.max_surf_step}°/tick surface")
@@ -434,8 +435,8 @@ class VTOLController:
         dt_loop = 1.0 / self.loop_hz
         last_print = 0.0
         _cached_ctrl = (0.0, 0.0, 0.0,
-                        self.trim_throttle, self.trim_throttle,
-                        self.trim_throttle, self.trim_throttle,
+                        self.trim_throttle_fwd, self.trim_throttle_fwd,
+                        self.trim_throttle_aft, self.trim_throttle_aft,
                         self.base_flaps, self.base_flaps)
 
         while self.running:
@@ -475,7 +476,7 @@ class VTOLController:
                 self.heading_hold = psi_d
                 self.initial_phi   = phi_d
                 self.initial_theta = theta_d
-                self.initial_alt   = alt
+                self.initial_alt   = round(alt / 100.0) * 100.0
                 self.initial_u     = u
                 self.rc_alt_cmd    = alt
                 self.rc_heading_cmd = psi_d
@@ -573,12 +574,8 @@ class VTOLController:
                 self.rc_phi_cmd     = phi_cmd_sched   # hold auto setpoint angle
                 self.rc_theta_cmd   = theta_cmd_sched
 
-                # Warmup blend: hold initial state, then ease into the scheduled setpoint.
-                if self.warmup_seconds > 0:
-                    raw = (t_since_start) / self.warmup_seconds
-                    blend = 0.5 * (1 - math.cos(math.pi * clamp(raw, 0, 1)))
-                else:
-                    blend = 1.0
+                # Warmup blend: ALWAYS hold initial state (blend=0) during pre-arm stabilization.
+                blend = 0.0
 
             # When yaw loop is enabled, read heading from schedule; otherwise hold initial
             if self.yaw_loop_enabled and not rc_active and "psi_deg" in sp:
@@ -586,10 +583,10 @@ class VTOLController:
             else:
                 psi_cmd = self.heading_hold
 
-            phi_cmd_base   = (1-blend) * self.initial_phi   + blend * phi_cmd_sched
-            theta_cmd_base = (1-blend) * self.initial_theta + blend * theta_cmd_sched
+            phi_cmd_base   = (1-blend) * 0.0                + blend * phi_cmd_sched
+            theta_cmd_base = (1-blend) * 0.0                + blend * theta_cmd_sched
             alt_cmd        = (1-blend) * self.initial_alt   + blend * alt_cmd_sched
-            u_cmd          = (1-blend) * self.initial_u     + blend * u_cmd_sched
+            u_cmd          = (1-blend) * 0.0                + blend * u_cmd_sched
 
             # === GROUND IDLE — pre-takeoff state ===
             # If we're on the ground AND the schedule isn't commanding us up yet,
@@ -668,18 +665,19 @@ class VTOLController:
             pitch_fwd =  pitch_diff
             pitch_aft = -pitch_diff
 
-            base = self.trim_throttle + collective_delta
+            base_fwd = self.trim_throttle_fwd + collective_delta
+            base_aft = self.trim_throttle_aft + collective_delta
 
-            thrFR_raw = base + pitch_fwd - roll_diff + yaw_thr_diff   # Motor 1 CCW: + for yaw right
-            thrFL_raw = base + pitch_fwd + roll_diff - yaw_thr_diff   # Motor 2 CW:  - for yaw right
-            thrAR_raw = base + pitch_aft - roll_diff - yaw_thr_diff   # Motor 3 CW:  - for yaw right
-            thrAL_raw = base + pitch_aft + roll_diff + yaw_thr_diff   # Motor 4 CCW: + for yaw right
+            thrFR_raw = base_fwd + pitch_fwd + roll_diff + yaw_thr_diff   # Motor 1 CCW: + for yaw right (Front-Left physical)
+            thrFL_raw = base_fwd + pitch_fwd - roll_diff - yaw_thr_diff   # Motor 2 CW:  - for yaw right (Front-Right physical)
+            thrAR_raw = base_aft + pitch_aft - roll_diff - yaw_thr_diff   # Motor 3 CW:  - for yaw right (Rear-Right physical)
+            thrAL_raw = base_aft + pitch_aft + roll_diff + yaw_thr_diff   # Motor 4 CCW: + for yaw right (Rear-Left physical)
 
             # === RAMP-IN: blend toward pure trim during the first few seconds ===
-            thrFR_ramped = ramp * thrFR_raw + (1 - ramp) * self.trim_throttle
-            thrFL_ramped = ramp * thrFL_raw + (1 - ramp) * self.trim_throttle
-            thrAR_ramped = ramp * thrAR_raw + (1 - ramp) * self.trim_throttle
-            thrAL_ramped = ramp * thrAL_raw + (1 - ramp) * self.trim_throttle
+            thrFR_ramped = ramp * thrFR_raw + (1 - ramp) * self.trim_throttle_fwd
+            thrFL_ramped = ramp * thrFL_raw + (1 - ramp) * self.trim_throttle_fwd
+            thrAR_ramped = ramp * thrAR_raw + (1 - ramp) * self.trim_throttle_aft
+            thrAL_ramped = ramp * thrAL_raw + (1 - ramp) * self.trim_throttle_aft
 
             # === CLAMP + RATE-LIMIT ===
             thrFR_cmd = self.rate_limit(clamp(thrFR_ramped, 0, 1), self.last_thr[0], self.max_thr_step)
