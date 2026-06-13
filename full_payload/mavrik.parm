@@ -9,27 +9,27 @@
 # Remaining issue: gains too small to arrest 4+ rad/s pitch rate at arm.
 # RAT_P=0.035 saturates at 7.1 rad/s (vs old 0.005 which saturated at 50 rad/s).
 # RAT_D=0.008 provides active damping of the ~0.1 rad/s pre-arm drift.
-Q_A_RAT_PIT_P 0.15
-Q_A_RAT_PIT_I 0.0
-Q_A_RAT_PIT_D 0.025
-Q_A_RAT_PIT_FLTD 10.0
-Q_A_RAT_RLL_P 0.15
-Q_A_RAT_RLL_I 0.0
-Q_A_RAT_RLL_D 0.025
-Q_A_RAT_RLL_FLTD 10.0
-Q_A_RAT_YAW_P 0.20
-Q_A_RAT_YAW_I 0.020
+Q_A_RAT_PIT_P 0.03712
+Q_A_RAT_PIT_I 0.00643
+Q_A_RAT_PIT_D 0.01310
+Q_A_RAT_PIT_FLTD 7.75357
+Q_A_RAT_RLL_P 0.03712
+Q_A_RAT_RLL_I 0.00643
+Q_A_RAT_RLL_D 0.01310
+Q_A_RAT_RLL_FLTD 7.75357
+Q_A_RAT_YAW_P 0.50
+Q_A_RAT_YAW_I 0.010
 Q_A_RAT_YAW_D 0.0
 Q_A_RAT_YAW_FF 0.0
 # Integrator limits
 Q_A_RAT_PIT_IMAX 0.4
 Q_A_RAT_RLL_IMAX 0.4
-Q_A_RAT_YAW_IMAX 0.50
+Q_A_RAT_YAW_IMAX 0.10
 
 # --- QuadPlane Attitude PIDs (outer loop: angle error deg → rate setpoint deg/s)
-Q_A_ANG_PIT_P 6.0
-Q_A_ANG_RLL_P 6.0
-Q_A_ANG_YAW_P 2.0
+Q_A_ANG_PIT_P 2.234
+Q_A_ANG_RLL_P 2.234
+Q_A_ANG_YAW_P 3.0
 
 # --- Motor hover — 160 lb loaded vehicle
 # CRITICAL: QuadPlane uses Q_M_ prefix for motor params, NOT MOT_ (those are Copter-only).
@@ -41,11 +41,14 @@ Q_M_SPIN_ARM 0.40
 Q_M_SPIN_MIN 0.05
 Q_M_SPOOL_TIME 0
 
-# --- Default to QHOVER on startup (safer VTOL mode)
+# --- Default to QSTABILIZE on startup (pure attitude hold, no position drift commands)
+# QHOVER (18) sends position-hold pitch commands to brake perceived forward drift
+# but we zero velocities in VTOL mode, so position drifts while velocity=0 -> EKF commands nose-up.
+# QSTABILIZE (17) = pure attitude hold, no GPS position loop = safer for our use case.
 # ArduPlane mode numbers: QSTABILIZE=17, QHOVER=18, QLOITER=19
-FLTMODE1 18
+FLTMODE1 17
 FLTMODE2 19
-FLTMODE3 17
+FLTMODE3 18
 # Disable RC-based mode switching — no hardware RC connected, so ArduPlane
 # reads ch8=0 (invalid) and immediately switches away from QHOVER after arm.
 # With FLTMODE_CH 0, mode is only changeable via MAVLink SET_MODE commands.
@@ -77,11 +80,9 @@ FS_GCS_ENABLE 0
 FS_EKF_ACTION 0
 FS_EKF_THRESH 0.8
 Q_OPTIONS 0
-# Q_TRIM_PITCH: MAVRIK hovers at -0.77° pitch (tilted motor geometry).
-# Tells AP's QuadPlane attitude controller that -0.77° IS the hover level position,
-# preventing the persistent nose-up correction that pushes AFT motors to 0.70+ over 15s.
-# -0.77° × π/180 = -0.0134 rad
-Q_TRIM_PITCH -0.0134
+# Q_TRIM_PITCH positive: AP targets slight nose-UP hover to counteract
+# tilted-motor geometry (prevents forward speed buildup in QSTABILIZE).
+Q_TRIM_PITCH 0.0262
 SCHED_LOOP_RATE 100
 INS_GYRO_RATE 100
 INS_USE2 0
@@ -107,7 +108,7 @@ Q_FRAME_TYPE 1
 
 # Differential Tilt for Yaw
 Q_TILT_MASK 5
-Q_TILT_YAW_ANGLE 15
+Q_TILT_YAW_ANGLE 30
 
 # Enable Aero Surfaces in VTOL modes
 Q_OPTIONS 0
@@ -129,34 +130,36 @@ SERVO5_FUNCTION 4
 SERVO6_FUNCTION 19
 SERVO7_FUNCTION 21
 # 8-9: Tilt servos (Left, Right)
-SERVO8_FUNCTION 75
+SERVO8_FUNCTION 76
 SERVO8_MIN 1000
 SERVO8_MAX 2000
 SERVO8_TRIM 1500
 SERVO8_REVERSED 0
 
-SERVO9_FUNCTION 76
+SERVO9_FUNCTION 75
 SERVO9_MIN 1000
 SERVO9_MAX 2000
 SERVO9_TRIM 1500
 SERVO9_REVERSED 0
 
-# --- PID Scaffold for Empty Drone ---
-# NOTE: Parameters above supersede these — kept for reference.
-Q_A_RAT_RLL_P 0.15
-Q_A_RAT_RLL_I 0.015
-Q_A_RAT_RLL_D 0.025
-Q_A_ANG_RLL_P 4.0
+# --- PID Scaffold for Loaded Drone ---
+# Moderate pitch gains: enough authority without saturating motors and coupling roll.
+# QHOVER's velocity loop does the heavy lifting on forward speed control.
+Q_A_RAT_RLL_P 0.22
+Q_A_RAT_RLL_I 0.050
+Q_A_RAT_RLL_D 0.028
+Q_A_ANG_RLL_P 6.0
 
-Q_A_RAT_PIT_P 0.15
-Q_A_RAT_PIT_I 0.015
-Q_A_RAT_PIT_D 0.025
-Q_A_ANG_PIT_P 4.0
+Q_A_RAT_PIT_P 0.28
+Q_A_RAT_PIT_I 0.070
+Q_A_RAT_PIT_D 0.035
+Q_A_ANG_PIT_P 7.5
 
 # Hover Thrust: MAVRIK unloaded hover trim = 0.35 (from log data avg motor output ~0.33-0.36)
 # Loaded (160lb): use 0.58. Unloaded (50lb): use 0.35.
 MOT_THST_HOVER 0.40
-INITIAL_MODE 18
+# QSTABILIZE (mode 17): pure manual attitude control.
+INITIAL_MODE 17
 Q_TILT_TYPE 2
 Q_M_THST_HOVER 0.40
 
@@ -165,7 +168,8 @@ Q_M_THST_HOVER 0.40
 # ==========================================
 # Transferred from unloaded tailless tests
 Q_TILT_MAX 90
-Q_TRANSITION_MS 2000
+# Faster motor tilt so vehicle exits the low-speed unstable regime quickly.
+Q_TRANSITION_MS 1500
 Q_M_SPIN_MAX 0.90
 
 # Fixed-Wing Aerodynamic PIDs (Baseline)

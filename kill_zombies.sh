@@ -5,7 +5,7 @@ echo "Looking for zombie simulation processes..."
 # List of process patterns to kill
 # Note: "wine" and "wineserver" intentionally omitted — killing the whole Wine/Whisky
 # session corrupts Wine state for the next MAVRIK launch. Only kill MAVRIK.exe itself.
-PROCESSES=("pid_vtol.py" "mavrik_ardupilot_bridge.py" "mavlink_ws_bridge.py" "mavproxy.py" "arducopter" "ArduPlane" "ArduCopter" "mavrik.exe")
+PROCESSES=("pid_vtol.py" "mavrik_ardupilot_bridge.py" "mavlink_ws_bridge.py" "mavproxy.py" "arducopter" "ArduPlane" "ArduCopter" "mavrik.exe" "test_transition.py")
 
 for pattern in "${PROCESSES[@]}"; do
     PIDS=$(pgrep -f "$pattern" 2>/dev/null)

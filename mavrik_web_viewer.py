@@ -42,7 +42,7 @@ def build_set_mode(custom_mode: int) -> bytes:
 
 def build_rc_override(ch1=0, ch2=0, ch3=0, ch4=0, ch5=0, ch6=0, ch7=0, ch8=0) -> bytes:
     """MAVLink v1 RC_CHANNELS_OVERRIDE (msg_id=70, CRC_EXTRA=124). 0 = don't override channel."""
-    payload = struct.pack('<BBHHHHHHHH', 1, 1, ch1, ch2, ch3, ch4, ch5, ch6, ch7, ch8)
+    payload = struct.pack('<HHHHHHHHBB', ch1, ch2, ch3, ch4, ch5, ch6, ch7, ch8, 1, 1)
     return _mav_pkt(70, payload, 124)
 
 _mavlink_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -51,6 +51,7 @@ MODE_NAMES = {0:'MANUAL', 5:'FBWA', 17:'QSTABILIZE', 18:'QHOVER', 19:'QLOITER', 
 
 # Auto-arm state
 _auto_arm_done = False
+_user_rc_active = False
 
 # MAVRIK's Graphics send port from connections.json
 UDP_IP = "0.0.0.0"
@@ -281,6 +282,8 @@ async def websocket_handler(request):
                 data = json.loads(msg.data)
                 # ── RC override ──
                 if data.get("type") == "rc_override":
+                    global _user_rc_active
+                    _user_rc_active = True
                     pkt = struct.pack('<4f', data["roll"], data["pitch"], data["yaw"], data["throttle"])
                     rc_sock.sendto(pkt, ('127.0.0.1', 5012))
                     echo_msg = {
@@ -432,7 +435,15 @@ async def auto_arm_loop():
                 for q in client_queues:
                     if q.qsize() < 10:
                         q.put_nowait({"type": "gcs_ack", "armed": True})
-                print("[AutoArm] Armed. ArduPilot manages altitude in QHOVER — no RC override needed.")
+                print("[AutoArm] Armed. Sending default hover override to hold altitude...")
+                # CH1=Roll(1500=neutral), CH2=Pitch(1540=slight nose-up to counteract loaded CG forward drift),
+                # CH3=Throttle(1500=neutral), CH4=Yaw(1500=neutral).
+                # Pitch 1540 was empirically tuned: keeps u_fps ≈ 0 in QSTABILIZE with loaded MAVRIK.
+                while not _user_rc_active:
+                    pkt = build_rc_override(1500, 1540, 1500, 1500)
+                    _mavlink_sock.sendto(pkt, ARDUPILOT_MAVLINK)
+                    await asyncio.sleep(0.05)  # 20 Hz
+                print("[AutoArm] User gamepad input detected. Stopping default hover override.")
                 return  # exit auto_arm_loop
         else:
             if stable_since is not None:

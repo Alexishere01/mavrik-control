@@ -1,0 +1,2 @@
+wineserver: using server-side synchronization.
+wine: failed to open "../../drive_c/Program Files (x86)/Mission Planner/MissionPlanner.exe": c0000135

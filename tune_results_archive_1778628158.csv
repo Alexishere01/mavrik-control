@@ -1,0 +1,2 @@
+trial,rat_p,rat_d,rat_i,ang_p,mot_spin,score,near5_pct,near10_pct,streak_secs,time_to_crash,max_q,max_p,motor_ok,early_min_motor,reason
+0,0.065,0.005,0.001,3.82,,0.0,0.0,,,0.0,0.0,,,,never_armed

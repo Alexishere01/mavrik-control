@@ -17,19 +17,19 @@ Q_A_RAT_RLL_P 0.15
 Q_A_RAT_RLL_I 0.0
 Q_A_RAT_RLL_D 0.025
 Q_A_RAT_RLL_FLTD 10.0
-Q_A_RAT_YAW_P 0.20
-Q_A_RAT_YAW_I 0.020
+Q_A_RAT_YAW_P 0.50
+Q_A_RAT_YAW_I 0.010
 Q_A_RAT_YAW_D 0.0
 Q_A_RAT_YAW_FF 0.0
 # Integrator limits
 Q_A_RAT_PIT_IMAX 0.4
 Q_A_RAT_RLL_IMAX 0.4
-Q_A_RAT_YAW_IMAX 0.50
+Q_A_RAT_YAW_IMAX 0.10
 
 # --- QuadPlane Attitude PIDs (outer loop: angle error deg → rate setpoint deg/s)
 Q_A_ANG_PIT_P 6.0
 Q_A_ANG_RLL_P 6.0
-Q_A_ANG_YAW_P 2.0
+Q_A_ANG_YAW_P 3.0
 
 # --- Motor hover — 160 lb loaded vehicle
 # CRITICAL: QuadPlane uses Q_M_ prefix for motor params, NOT MOT_ (those are Copter-only).
@@ -43,9 +43,9 @@ Q_M_SPOOL_TIME 0
 
 # --- Default to QHOVER on startup (safer VTOL mode)
 # ArduPlane mode numbers: QSTABILIZE=17, QHOVER=18, QLOITER=19
-FLTMODE1 18
+FLTMODE1 17
 FLTMODE2 19
-FLTMODE3 17
+FLTMODE3 18
 # Disable RC-based mode switching — no hardware RC connected, so ArduPlane
 # reads ch8=0 (invalid) and immediately switches away from QHOVER after arm.
 # With FLTMODE_CH 0, mode is only changeable via MAVLink SET_MODE commands.
@@ -81,7 +81,7 @@ Q_OPTIONS 0
 # Tells AP's QuadPlane attitude controller that -0.77° IS the hover level position,
 # preventing the persistent nose-up correction that pushes AFT motors to 0.70+ over 15s.
 # -0.77° × π/180 = -0.0134 rad
-Q_TRIM_PITCH -0.0134
+Q_TRIM_PITCH -0.0586
 SCHED_LOOP_RATE 100
 INS_GYRO_RATE 100
 INS_USE2 0
@@ -107,7 +107,7 @@ Q_FRAME_TYPE 1
 
 # Differential Tilt for Yaw
 Q_TILT_MASK 5
-Q_TILT_YAW_ANGLE 15
+Q_TILT_YAW_ANGLE 30
 
 # Enable Aero Surfaces in VTOL modes
 Q_OPTIONS 0
@@ -129,13 +129,13 @@ SERVO5_FUNCTION 4
 SERVO6_FUNCTION 19
 SERVO7_FUNCTION 21
 # 8-9: Tilt servos (Left, Right)
-SERVO8_FUNCTION 75
+SERVO8_FUNCTION 76
 SERVO8_MIN 1000
 SERVO8_MAX 2000
 SERVO8_TRIM 1500
 SERVO8_REVERSED 0
 
-SERVO9_FUNCTION 76
+SERVO9_FUNCTION 75
 SERVO9_MIN 1000
 SERVO9_MAX 2000
 SERVO9_TRIM 1500

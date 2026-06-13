@@ -1,0 +1,153 @@
+======================================================================
+  MAVRIK <-> ArduPilot SITL bridge
+======================================================================
+  Listening for ArduPilot PWM:  udp://127.0.0.1:9002
+  MAVRIK state (in):            udp://*:5009
+  MAVRIK controls (out):        udp://127.0.0.1:5006
+  flaps held at:                1.0
+
+  Start ArduPilot with:
+    sim_vehicle.py -v ArduCopter -f quad --model JSON:127.0.0.1 \
+                   --map --console
+
+  Ctrl+C to stop.
+
+  RC override (in):             udp://*:5012  (bound after handover to ArduPilot)
+  RC override (out):            MAVLink RC_CHANNELS_OVERRIDE → 127.0.0.1:14552
+
+  Diagnostic log:  /Users/alex/Library/Containers/com.isaacmarovitz.Whisky/Bottles/37084628-4FFA-403A-BD20-3D881F401401/drive_c/zWindowsDeployment/bridge_diag.csv
+
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=0  mavrik_rx=0
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=0  mavrik_rx=0
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=9  mavrik_rx=0
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=106  mavrik_rx=0
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=201  mavrik_rx=0
+
+  [Bridge] Flight mode changed from 18 to 16!
+
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=298  mavrik_rx=0
+
+  [Bridge] Flight mode changed from 16 to 17!
+
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=393  mavrik_rx=0
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=487  mavrik_rx=0
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=581  mavrik_rx=0
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=675  mavrik_rx=0
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=768  mavrik_rx=0
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=862  mavrik_rx=0
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=956  mavrik_rx=0
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=1049  mavrik_rx=0
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=1144  mavrik_rx=0
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=1241  mavrik_rx=0
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=1335  mavrik_rx=0
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=1429  mavrik_rx=0
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=1523  mavrik_rx=0
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=1617  mavrik_rx=0
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=1712  mavrik_rx=0
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=1810  mavrik_rx=0
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=1907  mavrik_rx=0
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=2005  mavrik_rx=0
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=2102  mavrik_rx=0
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=2200  mavrik_rx=0
+  [PRE-ARM] [waiting for MAVRIK]  pwm=[1000,1000,1000,1000]  ap_rx=2297  mavrik_rx=0
+  [Bridge] MAVRIK connected (t_offset=13.86s)
+  [PRE-ARM] t=   0.1s  alt= 3000ft  R= +0.0 P= -0.1 Y= +0.0  u= +0.1fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=   0.7s  alt= 2999ft  R= +0.0 P= -0.3 Y= +0.0  u= +0.3fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=   1.2s  alt= 2998ft  R= +0.0 P= -0.7 Y= -0.0  u= +0.7fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=   1.7s  alt= 2999ft  R= +0.0 P= -0.1 Y= -0.0  u= +0.9fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=   2.2s  alt= 2999ft  R= +0.0 P= +0.3 Y= -0.0  u= +1.0fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=   2.7s  alt= 2999ft  R= +0.0 P= +0.4 Y= -0.0  u= +1.1fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=   3.2s  alt= 3000ft  R= -0.0 P= +0.4 Y= -0.0  u= +1.1fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=   3.7s  alt= 3000ft  R= -0.0 P= +0.4 Y= -0.0  u= +1.1fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=   4.2s  alt= 3000ft  R= -0.0 P= +0.4 Y= -0.0  u= +1.2fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=   4.7s  alt= 3000ft  R= -0.0 P= +0.3 Y= -0.0  u= +1.2fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=   5.2s  alt= 3000ft  R= -0.0 P= +0.3 Y= -0.0  u= +1.3fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=   5.7s  alt= 3000ft  R= -0.0 P= +0.3 Y= -0.0  u= +1.3fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=   6.2s  alt= 3000ft  R= -0.0 P= +0.3 Y= -0.0  u= +1.3fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=   6.7s  alt= 3000ft  R= -0.0 P= +0.3 Y= -0.0  u= +1.4fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=   7.2s  alt= 3001ft  R= -0.0 P= +0.3 Y= -0.0  u= +1.4fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=   7.7s  alt= 3001ft  R= -0.0 P= +0.3 Y= -0.0  u= +1.5fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=   8.2s  alt= 3000ft  R= -0.0 P= +0.3 Y= -0.0  u= +1.5fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=   8.7s  alt= 3000ft  R= -0.0 P= +0.3 Y= -0.0  u= +1.6fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=   9.2s  alt= 3000ft  R= -0.0 P= +0.3 Y= -0.0  u= +1.6fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=   9.7s  alt= 3000ft  R= -0.0 P= +0.3 Y= -0.0  u= +1.6fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=  10.2s  alt= 3000ft  R= -0.0 P= +0.3 Y= -0.0  u= +1.7fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=  10.7s  alt= 3000ft  R= -0.0 P= +0.3 Y= -0.0  u= +1.7fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=  11.2s  alt= 3000ft  R= -0.0 P= +0.3 Y= -0.0  u= +1.7fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=  11.7s  alt= 3000ft  R= -0.0 P= +0.4 Y= -0.0  u= +1.8fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=  12.2s  alt= 3000ft  R= -0.0 P= +0.4 Y= -0.0  u= +1.8fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=  12.7s  alt= 3000ft  R= -0.0 P= +0.4 Y= -0.0  u= +1.8fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=  13.2s  alt= 3000ft  R= -0.0 P= +0.4 Y= -0.0  u= +1.9fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=  13.7s  alt= 3000ft  R= -0.0 P= +0.4 Y= -0.0  u= +1.9fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=  14.2s  alt= 3000ft  R= -0.0 P= +0.4 Y= -0.0  u= +1.9fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=  14.7s  alt= 3000ft  R= -0.0 P= +0.4 Y= -0.0  u= +1.9fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=  15.2s  alt= 3000ft  R= +0.0 P= +0.4 Y= -0.0  u= +1.9fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=  15.7s  alt= 3000ft  R= +0.0 P= +0.4 Y= -0.0  u= +2.0fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=  16.2s  alt= 3000ft  R= +0.0 P= +0.4 Y= -0.0  u= +2.0fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=  16.7s  alt= 3000ft  R= +0.0 P= +0.4 Y= -0.0  u= +2.0fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=  17.2s  alt= 3000ft  R= +0.0 P= +0.4 Y= -0.0  u= +2.0fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=  17.7s  alt= 3000ft  R= +0.0 P= +0.4 Y= -0.0  u= +2.0fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=  18.2s  alt= 3000ft  R= +0.0 P= +0.4 Y= -0.0  u= +2.0fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=  18.7s  alt= 3000ft  R= +0.0 P= +0.4 Y= -0.0  u= +2.0fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=  19.2s  alt= 3000ft  R= +0.0 P= +0.4 Y= -0.0  u= +2.0fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=  19.7s  alt= 3000ft  R= +0.0 P= +0.5 Y= -0.0  u= +2.0fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=  20.2s  alt= 3000ft  R= +0.0 P= +0.5 Y= -0.0  u= +2.0fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [PRE-ARM] t=  20.7s  alt= 3000ft  R= +0.0 P= +0.5 Y= -0.0  u= +2.0fps  pwm=[1000,1000,1000,1000]  flp_pwm=[--,--] flp=[0.000,0.000]
+  [Bridge] AP armed (pwm=[1009, 1009, 1009, 1009]) — handing over immediately...
+
+  [Bridge] Handover: roll=-0.0° pitch=0.5° alt=3000ft pwm=[1009,1009,1009,1009]
+
+  [Bridge] Stop signal sent to pid_vtol.py (port 5015). Grace period: 150ms hover trim.
+  [Bridge] Grace ended — AP with floor+blend active.
+  [Bridge] RC override socket bound to port 5012.
+  [ARMED] t=  21.2s  alt= 3000ft  R= -0.0 P= +0.4 Y= -0.0  u= +2.1fps  pwm=[1527,1506,1524,1508]  flp_pwm=[1249,1250] flp=[0.972,0.972]
+  [ARMED] t=  21.7s  alt= 3000ft  R= -0.0 P= -0.7 Y= -0.0  u= +2.6fps  pwm=[1533,1499,1534,1499]  flp_pwm=[1249,1250] flp=[0.951,0.952]
+  [ARMED] t=  22.2s  alt= 3001ft  R= -0.1 P= +1.5 Y= -0.0  u= +3.4fps  pwm=[1489,1518,1490,1518]  flp_pwm=[1250,1249] flp=[0.931,0.930]
+  [ARMED] t=  22.7s  alt= 3003ft  R= -0.1 P= +1.5 Y= +0.0  u= +4.2fps  pwm=[1450,1478,1450,1478]  flp_pwm=[1250,1249] flp=[0.910,0.910]
+  [ARMED] t=  23.2s  alt= 3006ft  R= -0.1 P= +1.8 Y= +0.0  u= +5.4fps  pwm=[1393,1444,1393,1444]  flp_pwm=[1249,1250] flp=[0.889,0.890]
+  [ARMED] t=  23.7s  alt= 3010ft  R= -0.1 P= +1.9 Y= +0.0  u= +6.8fps  pwm=[1339,1393,1339,1393]  flp_pwm=[1250,1249] flp=[0.869,0.868]
+  [ARMED] t=  24.2s  alt= 3014ft  R= -0.1 P= +1.7 Y= +0.1  u= +8.1fps  pwm=[1312,1359,1312,1359]  flp_pwm=[1250,1249] flp=[0.867,0.865]
+  [ARMED] t=  24.7s  alt= 3017ft  R= -0.1 P= +1.4 Y= +0.1  u= +9.4fps  pwm=[1317,1355,1317,1355]  flp_pwm=[1250,1249] flp=[0.867,0.865]
+  [ARMED] t=  25.2s  alt= 3020ft  R= -0.1 P= +1.2 Y= +0.1  u=+10.8fps  pwm=[1322,1350,1322,1350]  flp_pwm=[1250,1249] flp=[0.867,0.865]
+  [ARMED] t=  25.7s  alt= 3021ft  R= -0.1 P= +0.9 Y= +0.2  u=+12.1fps  pwm=[1327,1345,1327,1345]  flp_pwm=[1249,1250] flp=[0.865,0.867]
+  [ARMED] t=  26.2s  alt= 3022ft  R= -0.1 P= +0.7 Y= +0.2  u=+13.2fps  pwm=[1328,1345,1328,1345]  flp_pwm=[1250,1249] flp=[0.867,0.865]
+  [ARMED] t=  26.7s  alt= 3021ft  R= -0.1 P= +0.6 Y= +0.2  u=+14.1fps  pwm=[1332,1341,1332,1341]  flp_pwm=[1249,1250] flp=[0.865,0.867]
+  [ARMED] t=  27.2s  alt= 3020ft  R= -0.1 P= +0.5 Y= +0.2  u=+14.9fps  pwm=[1335,1337,1335,1337]  flp_pwm=[1250,1249] flp=[0.867,0.865]
+  [ARMED] t=  27.7s  alt= 3018ft  R= -0.1 P= +0.4 Y= +0.3  u=+15.5fps  pwm=[1338,1335,1338,1335]  flp_pwm=[1249,1250] flp=[0.865,0.867]
+  [ARMED] t=  28.2s  alt= 3015ft  R= -0.1 P= +0.3 Y= +0.3  u=+16.0fps  pwm=[1350,1344,1350,1343]  flp_pwm=[1250,1249] flp=[0.867,0.865]
+  [ARMED] t=  28.7s  alt= 3013ft  R= -0.2 P= +0.2 Y= +0.3  u=+16.5fps  pwm=[1391,1378,1391,1378]  flp_pwm=[1249,1250] flp=[0.865,0.867]
+  [ARMED] t=  29.2s  alt= 3010ft  R= -0.2 P= +0.2 Y= +0.3  u=+17.3fps  pwm=[1432,1423,1432,1422]  flp_pwm=[1250,1249] flp=[0.867,0.865]
+  [ARMED] t=  29.7s  alt= 3009ft  R= -0.2 P= +0.5 Y= +0.3  u=+18.3fps  pwm=[1428,1426,1428,1426]  flp_pwm=[1250,1249] flp=[0.867,0.865]
+  [ARMED] t=  30.2s  alt= 3009ft  R= -0.2 P= +0.8 Y= +0.3  u=+19.4fps  pwm=[1414,1425,1413,1425]  flp_pwm=[1250,1249] flp=[0.867,0.865]
+  [ARMED] t=  30.7s  alt= 3010ft  R= -0.2 P= +0.8 Y= +0.3  u=+20.6fps  pwm=[1400,1405,1399,1406]  flp_pwm=[1250,1249] flp=[0.867,0.865]
+  [ARMED] t=  31.2s  alt= 3011ft  R= -0.2 P= +0.8 Y= +0.4  u=+21.7fps  pwm=[1383,1387,1383,1387]  flp_pwm=[1250,1249] flp=[0.867,0.865]
+  [ARMED] t=  31.7s  alt= 3012ft  R= -0.2 P= +0.8 Y= +0.3  u=+22.7fps  pwm=[1355,1358,1356,1358]  flp_pwm=[1251,1248] flp=[0.868,0.864]
+  [ARMED] t=  32.2s  alt= 3013ft  R= -0.2 P= +0.8 Y= +0.4  u=+23.4fps  pwm=[1342,1351,1342,1351]  flp_pwm=[1250,1249] flp=[0.867,0.865]
+  [ARMED] t=  32.7s  alt= 3013ft  R= -0.3 P= +0.7 Y= +0.4  u=+23.8fps  pwm=[1354,1360,1354,1360]  flp_pwm=[1250,1249] flp=[0.867,0.865]
+  [ARMED] t=  33.2s  alt= 3013ft  R= -0.3 P= +0.6 Y= +0.4  u=+24.0fps  pwm=[1358,1355,1358,1356]  flp_pwm=[1250,1249] flp=[0.867,0.865]
+  [ARMED] t=  33.7s  alt= 3012ft  R= -0.3 P= +0.5 Y= +0.4  u=+24.2fps  pwm=[1388,1382,1388,1382]  flp_pwm=[1251,1248] flp=[0.868,0.864]
+  [ARMED] t=  34.2s  alt= 3012ft  R= -0.4 P= +0.5 Y= +0.5  u=+24.5fps  pwm=[1387,1383,1388,1382]  flp_pwm=[1249,1250] flp=[0.865,0.867]
+  [ARMED] t=  34.7s  alt= 3011ft  R= -0.4 P= +0.6 Y= +0.5  u=+24.8fps  pwm=[1386,1384,1386,1384]  flp_pwm=[1251,1248] flp=[0.868,0.864]
+  [ARMED] t=  35.2s  alt= 3011ft  R= -0.5 P= +0.7 Y= +0.6  u=+25.2fps  pwm=[1385,1385,1385,1385]  flp_pwm=[1250,1249] flp=[0.867,0.865]
+  [ARMED] t=  35.7s  alt= 3011ft  R= -0.5 P= +0.7 Y= +0.5  u=+25.5fps  pwm=[1384,1387,1384,1386]  flp_pwm=[1251,1248] flp=[0.868,0.864]
+  [ARMED] t=  36.2s  alt= 3012ft  R= -0.6 P= +0.7 Y= +0.6  u=+25.9fps  pwm=[1375,1376,1375,1376]  flp_pwm=[1251,1248] flp=[0.868,0.864]
+  [ARMED] t=  36.7s  alt= 3012ft  R= -0.6 P= +0.7 Y= +0.6  u=+26.2fps  pwm=[1375,1377,1376,1376]  flp_pwm=[1251,1248] flp=[0.868,0.864]
+  [ARMED] t=  37.2s  alt= 3012ft  R= -0.7 P= +0.7 Y= +0.7  u=+26.5fps  pwm=[1374,1378,1374,1377]  flp_pwm=[1251,1248] flp=[0.868,0.864]
+  [ARMED] t=  37.7s  alt= 3012ft  R= -0.8 P= +0.7 Y= +0.7  u=+26.8fps  pwm=[1368,1364,1369,1364]  flp_pwm=[1251,1248] flp=[0.868,0.864]
+  [ARMED] t=  38.2s  alt= 3012ft  R= -0.9 P= +0.7 Y= +0.8  u=+26.9fps  pwm=[1376,1376,1377,1375]  flp_pwm=[1251,1248] flp=[0.868,0.864]
+  [ARMED] t=  38.7s  alt= 3012ft  R= -1.0 P= +0.7 Y= +0.9  u=+27.0fps  pwm=[1377,1375,1377,1374]  flp_pwm=[1252,1247] flp=[0.869,0.863]
+  [ARMED] t=  39.2s  alt= 3012ft  R= -1.1 P= +0.7 Y= +1.0  u=+27.2fps  pwm=[1377,1375,1377,1375]  flp_pwm=[1251,1248] flp=[0.868,0.864]
+  [ARMED] t=  39.7s  alt= 3012ft  R= -1.2 P= +0.7 Y= +1.0  u=+27.3fps  pwm=[1377,1375,1377,1375]  flp_pwm=[1252,1247] flp=[0.869,0.863]
+  [ARMED] t=  40.2s  alt= 3012ft  R= -1.3 P= +0.7 Y= +1.1  u=+27.4fps  pwm=[1376,1376,1377,1375]  flp_pwm=[1252,1247] flp=[0.869,0.863]
+  [ARMED] t=  40.7s  alt= 3012ft  R= -0.5 P= +0.2 Y= +1.2  u=+27.6fps  pwm=[1379,1373,1388,1364]  flp_pwm=[1256,1243] flp=[0.873,0.858]
+  [ARMED] t=  41.2s  alt= 3012ft  R= -0.4 P= +0.2 Y= +1.6  u=+27.9fps  pwm=[1373,1378,1377,1375]  flp_pwm=[1248,1251] flp=[0.864,0.868]
+  [ARMED] t=  41.7s  alt= 3012ft  R= -0.5 P= +0.2 Y= +1.3  u=+28.2fps  pwm=[1376,1376,1378,1374]  flp_pwm=[1255,1244] flp=[0.872,0.860]
+  [ARMED] t=  42.2s  alt= 3012ft  R= -0.5 P= +0.2 Y= +1.3  u=+28.4fps  pwm=[1376,1376,1378,1374]  flp_pwm=[1250,1249] flp=[0.867,0.865]
+  [ARMED] t=  42.7s  alt= 3011ft  R= -0.5 P= +0.2 Y= +1.0  u=+28.6fps  pwm=[1387,1383,1388,1382]  flp_pwm=[1253,1246] flp=[0.870,0.862]
+  [ARMED] t=  43.2s  alt= 3012ft  R= -0.5 P= +0.2 Y= +0.9  u=+28.9fps  pwm=[1377,1375,1378,1374]  flp_pwm=[1252,1247] flp=[0.869,0.863]
+  [ARMED] t=  43.7s  alt= 3012ft  R= -0.6 P= +0.2 Y= +0.6  u=+29.1fps  pwm=[1377,1375,1378,1373]  flp_pwm=[1252,1247] flp=[0.869,0.863]
+  [ARMED] t=  44.2s  alt= 3012ft  R= -0.6 P= +0.2 Y= +0.5  u=+29.3fps  pwm=[1375,1377,1375,1377]  flp_pwm=[1252,1247] flp=[0.869,0.863]
+  [ARMED] t=  44.7s  alt= 3012ft  R= -0.6 P= +0.2 Y= +0.4  u=+29.4fps  pwm=[1379,1373,1380,1372]  flp_pwm=[1251,1248] flp=[0.868,0.864]
+  [ARMED] t=  45.2s  alt= 3012ft  R= -0.6 P= +0.3 Y= +0.2  u=+29.5fps  pwm=[1378,1374,1378,1373]  flp_pwm=[1253,1246] flp=[0.870,0.862]
+  [ARMED] t=  45.7s  alt= 3012ft  R= -0.7 P= +0.3 Y= +0.1  u=+29.6fps  pwm=[1378,1374,1379,1373]  flp_pwm=[1250,1249] flp=[0.867,0.865]
+  [ARMED] t=  46.2s  alt= 3012ft  R= -0.7 P= +0.3 Y= -0.1  u=+29.7fps  pwm=[1378,1374,1379,1373]  flp_pwm=[1252,1247] flp=[0.869,0.863]

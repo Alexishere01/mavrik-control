@@ -1,0 +1,96 @@
+  Loading config from pid_vtol_gains.json
+
+========================================================================
+  MAVRIK VTOL PID Controller v2  (asymmetric mixer)
+========================================================================
+  roll_rate kp=0.001  roll_att output_max=15.0
+  Mode:           hover  (base_flaps=0.99)
+  Trim throttle:  FWD=0.410  AFT=0.342
+  Loop rate:      50 Hz
+  Rate limits:    0.05/tick throttle, 5.0°/tick surface
+  Ramp-in:        2.0 s (output blend trim->controller)
+  Warmup:         5.0 s (setpoint blend initial->schedule)
+  u-vel loop:     on
+  Yaw loop:       ON (dual-loop)
+    Inner (rate→throttle): gain=1.0
+    Outer (att→flaps):     gain=1.0
+  Log file:       pid_log.csv
+
+  Setpoint schedule:
+    t=  0.0s  phi= +0.0°  theta= +0.0°  alt=250 ft  u=+0.0 fps
+    t= 30.0s  phi= +0.0°  theta= +0.0°  alt=250 ft  u=+0.0 fps
+    t= 40.0s  phi= +5.0°  theta= +0.0°  alt=250 ft  u=+0.0 fps
+    t= 55.0s  phi= +0.0°  theta= +0.0°  alt=250 ft  u=+0.0 fps
+    t= 70.0s  phi= +0.0°  theta= +0.0°  alt=260 ft  u=+0.0 fps
+    t= 90.0s  phi= +0.0°  theta= +0.0°  alt=250 ft  u=+0.0 fps
+    t=100.0s  phi= +0.0°  theta= +0.0°  alt=250 ft  u=+0.0 fps
+    t=120.0s  phi= +0.0°  theta= +0.0°  alt=250 ft  u=+0.0 fps
+    t=140.0s  phi= +0.0°  theta=+10.0°  alt=250 ft  u=+0.0 fps
+    t=155.0s  phi= +0.0°  theta=-10.0°  alt=250 ft  u=+0.0 fps
+    t=170.0s  phi= +0.0°  theta= +0.0°  alt=250 ft  u=+0.0 fps
+    t=180.0s  phi=+15.0°  theta= +0.0°  alt=250 ft  u=+0.0 fps
+    t=190.0s  phi=-15.0°  theta= +0.0°  alt=250 ft  u=+0.0 fps
+    t=200.0s  phi= +0.0°  theta= +0.0°  alt=250 ft  u=+0.0 fps
+    t=210.0s  phi= +0.0°  theta= +0.0°  alt=250 ft  u=+0.0 fps
+    t=220.0s  phi= +0.0°  theta= +0.0°  alt=250 ft  u=+0.0 fps
+    t=230.0s  phi= +0.0°  theta= +0.0°  alt=250 ft  u=+0.0 fps
+    t=240.0s  phi= +0.0°  theta= +0.0°  alt=250 ft  u=+0.0 fps
+    t=250.0s  phi= +0.0°  theta= +0.0°  alt=250 ft  u=+20.0 fps
+    t=270.0s  phi= +0.0°  theta= +0.0°  alt=250 ft  u=+0.0 fps
+    t=285.0s  phi=+30.0°  theta= +0.0°  alt=250 ft  u=+0.0 fps
+    t=295.0s  phi=-30.0°  theta= +0.0°  alt=250 ft  u=+0.0 fps
+    t=305.0s  phi= +0.0°  theta= +0.0°  alt=250 ft  u=+30.0 fps
+    t=320.0s  phi= +0.0°  theta= +0.0°  alt=250 ft  u=+30.0 fps
+    t=335.0s  phi= +0.0°  theta= +0.0°  alt=100 ft  u=+0.0 fps
+    t=350.0s  phi= +0.0°  theta= +0.0°  alt=300 ft  u=+0.0 fps
+    t=370.0s  phi= +0.0°  theta= +0.0°  alt=250 ft  u=+0.0 fps
+========================================================================
+  Waiting for MAVRIK state...
+
+  Initial: phi=-0.0° theta=-0.0° psi=-0.0° alt=3000 ft  u=0.0 fps
+  Holding initial state for 5.0s, then blending into schedule.
+  t=   0.5s RMP | phi= +0.0/ +0.0 | theta= -0.2/ +0.0 | alt=2999.1/3000 | psi=  +0.0/-0 | u= +0.3 | thr=[0.44 0.44 0.37 0.37] ydf=-0.0000
+  t=   1.0s RMP | phi= +0.0/ +0.0 | theta= -0.7/ +0.1 | alt=2998.3/3000 | psi=  -0.0/-0 | u= +0.6 | thr=[0.45 0.45 0.37 0.37] ydf=-0.0000
+  t=   1.5s RMP | phi= +0.0/ +0.0 | theta= -0.2/ +0.1 | alt=2998.4/3000 | psi=  -0.0/-0 | u= +0.9 | thr=[0.42 0.42 0.35 0.35] ydf=-0.0000
+  t=   2.0s W0.0 | phi= +0.0/ +0.0 | theta= +0.2/ +0.2 | alt=2998.9/3000 | psi=  -0.0/-0 | u= +1.0 | thr=[0.40 0.40 0.34 0.34] ydf=-0.0000
+  t=   2.6s W0.0 | phi= +0.0/ +0.0 | theta= +0.4/ +0.2 | alt=2999.3/3000 | psi=  -0.0/-0 | u= +1.1 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=   3.1s W0.0 | phi= -0.0/ +0.0 | theta= +0.4/ +0.2 | alt=2999.7/3000 | psi=  -0.0/-0 | u= +1.1 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=   3.6s W0.0 | phi= -0.0/ +0.0 | theta= +0.4/ +0.2 | alt=2999.9/3000 | psi=  -0.0/-0 | u= +1.1 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=   4.1s W0.0 | phi= -0.0/ +0.0 | theta= +0.4/ +0.2 | alt=3000.1/3000 | psi=  -0.0/-0 | u= +1.2 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=   4.6s W0.0 | phi= -0.0/ +0.0 | theta= +0.3/ +0.2 | alt=3000.3/3000 | psi=  -0.0/-0 | u= +1.2 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=   5.1s W0.0 | phi= -0.0/ +0.0 | theta= +0.3/ +0.2 | alt=3000.4/3000 | psi=  -0.0/-0 | u= +1.3 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=   5.6s W0.0 | phi= -0.0/ +0.0 | theta= +0.3/ +0.2 | alt=3000.4/3000 | psi=  -0.0/-0 | u= +1.3 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=   6.2s W0.0 | phi= -0.0/ +0.0 | theta= +0.3/ +0.2 | alt=3000.5/3000 | psi=  -0.0/-0 | u= +1.3 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=   6.7s W0.0 | phi= -0.0/ +0.0 | theta= +0.3/ +0.2 | alt=3000.5/3000 | psi=  -0.0/-0 | u= +1.4 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=   7.2s W0.0 | phi= -0.0/ +0.0 | theta= +0.3/ +0.3 | alt=3000.5/3000 | psi=  -0.0/-0 | u= +1.4 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=   7.7s W0.0 | phi= -0.0/ +0.0 | theta= +0.3/ +0.3 | alt=3000.5/3000 | psi=  -0.0/-0 | u= +1.5 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=   8.2s W0.0 | phi= -0.0/ +0.0 | theta= +0.3/ +0.3 | alt=3000.5/3000 | psi=  -0.0/-0 | u= +1.5 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=   8.7s W0.0 | phi= -0.0/ +0.0 | theta= +0.3/ +0.3 | alt=3000.5/3000 | psi=  -0.0/-0 | u= +1.6 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=   9.2s W0.0 | phi= -0.0/ +0.0 | theta= +0.3/ +0.3 | alt=3000.4/3000 | psi=  -0.0/-0 | u= +1.6 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=   9.7s W0.0 | phi= -0.0/ +0.0 | theta= +0.3/ +0.3 | alt=3000.4/3000 | psi=  -0.0/-0 | u= +1.6 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=  10.2s W0.0 | phi= -0.0/ +0.0 | theta= +0.3/ +0.3 | alt=3000.4/3000 | psi=  -0.0/-0 | u= +1.7 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=  10.7s W0.0 | phi= -0.0/ +0.0 | theta= +0.3/ +0.3 | alt=3000.4/3000 | psi=  -0.0/-0 | u= +1.7 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=  11.3s W0.0 | phi= -0.0/ +0.0 | theta= +0.4/ +0.3 | alt=3000.3/3000 | psi=  -0.0/-0 | u= +1.8 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=  11.8s W0.0 | phi= -0.0/ +0.0 | theta= +0.4/ +0.3 | alt=3000.3/3000 | psi=  -0.0/-0 | u= +1.8 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=  12.3s W0.0 | phi= -0.0/ +0.0 | theta= +0.4/ +0.4 | alt=3000.3/3000 | psi=  -0.0/-0 | u= +1.8 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=  12.8s W0.0 | phi= -0.0/ +0.0 | theta= +0.4/ +0.4 | alt=3000.2/3000 | psi=  -0.0/-0 | u= +1.8 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=  13.3s W0.0 | phi= -0.0/ +0.0 | theta= +0.4/ +0.4 | alt=3000.2/3000 | psi=  -0.0/-0 | u= +1.9 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=  13.9s W0.0 | phi= -0.0/ +0.0 | theta= +0.4/ +0.4 | alt=3000.2/3000 | psi=  -0.0/-0 | u= +1.9 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=  14.4s W0.0 | phi= -0.0/ +0.0 | theta= +0.4/ +0.4 | alt=3000.2/3000 | psi=  -0.0/-0 | u= +1.9 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=  14.9s W0.0 | phi= -0.0/ +0.0 | theta= +0.4/ +0.4 | alt=3000.1/3000 | psi=  -0.0/-0 | u= +1.9 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=  15.4s W0.0 | phi= +0.0/ +0.0 | theta= +0.4/ +0.4 | alt=3000.1/3000 | psi=  -0.0/-0 | u= +2.0 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=  15.9s W0.0 | phi= +0.0/ +0.0 | theta= +0.4/ +0.4 | alt=3000.1/3000 | psi=  -0.0/-0 | u= +2.0 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=  16.4s W0.0 | phi= +0.0/ +0.0 | theta= +0.4/ +0.4 | alt=3000.1/3000 | psi=  -0.0/-0 | u= +2.0 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=  16.9s W0.0 | phi= +0.0/ +0.0 | theta= +0.4/ +0.4 | alt=3000.1/3000 | psi=  -0.0/-0 | u= +2.0 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=  17.4s W0.0 | phi= +0.0/ +0.0 | theta= +0.4/ +0.4 | alt=3000.1/3000 | psi=  -0.0/-0 | u= +2.0 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=  18.0s W0.0 | phi= +0.0/ +0.0 | theta= +0.4/ +0.4 | alt=3000.0/3000 | psi=  -0.0/-0 | u= +2.0 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=  18.5s W0.0 | phi= +0.0/ +0.0 | theta= +0.4/ +0.4 | alt=3000.0/3000 | psi=  -0.0/-0 | u= +2.0 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=  19.0s W0.0 | phi= +0.0/ +0.0 | theta= +0.4/ +0.4 | alt=3000.0/3000 | psi=  -0.0/-0 | u= +2.0 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=  19.5s W0.0 | phi= +0.0/ +0.0 | theta= +0.5/ +0.5 | alt=3000.0/3000 | psi=  -0.0/-0 | u= +2.0 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=  20.0s W0.0 | phi= +0.0/ +0.0 | theta= +0.5/ +0.5 | alt=3000.0/3000 | psi=  -0.0/-0 | u= +2.0 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+  t=  20.5s W0.0 | phi= +0.0/ +0.0 | theta= +0.5/ +0.5 | alt=3000.0/3000 | psi=  -0.0/-0 | u= +2.0 | thr=[0.41 0.41 0.34 0.34] ydf=-0.0000
+
+[pid_vtol] Bridge handover signal received — stopping (ArduPilot now controls).
+
+
+  Controller stopped. Log saved.

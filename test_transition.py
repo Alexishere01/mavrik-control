@@ -39,7 +39,7 @@ def rc_override_thread_fn():
         with _rc_override_lock:
             ch = list(_rc_override_channels)
         target_sys, target_comp = 1, 1
-        payload = struct.pack('<BBHHHHHHHH', target_sys, target_comp, *ch)
+        payload = struct.pack('<HHHHHHHHBB', *ch, target_sys, target_comp)
         pkt = _mav_pkt(70, payload, 124)
         try:
             s.sendto(pkt, ('127.0.0.1', 14552))
@@ -185,7 +185,7 @@ def main():
                     rows = list(csv.DictReader(f))
                 if rows:
                     latest_t = float(rows[-1]['sim_t'])
-                    if latest_t > 2.0:
+                    if latest_t > 20.0:
                         connected = True
                         print(f"  [stabilized] MAVRIK active & level (t={latest_t:.1f}s) ✓")
                         break
@@ -198,13 +198,13 @@ def main():
         kill_all("MAVRIK connection timed out")
         sys.exit(1)
 
-    QHOVER = 18
+    QSTABILIZE = 17
     deadline = time.time() + 25.0
-    print("  [arm] Arming via MAVLink...", end='', flush=True)
+    print("  [arm] Arming via MAVLink (QSTABILIZE)...", end='', flush=True)
     armed = False
     while time.time() < deadline:
         for _ in range(3):
-            mav_set_mode(QHOVER)
+            mav_set_mode(QSTABILIZE)
         time.sleep(0.4)
         for _ in range(5):
             mav_arm(force=True)
@@ -226,11 +226,28 @@ def main():
         kill_all("failed arming")
         sys.exit(1)
 
+    # MAVLink listener for ArduPilot's estimated attitude
+    ap_att = {"roll": 0.0, "pitch": 0.0}
+    def ap_listener_fn():
+        from pymavlink import mavutil
+        # Wait a bit for SITL to start
+        time.sleep(11)
+        try:
+            master = mavutil.mavlink_connection('udp:127.0.0.1:14550')
+            while not _rc_override_stop.is_set():
+                msg = master.recv_match(type='ATTITUDE', blocking=True, timeout=0.5)
+                if msg is not None:
+                    ap_att["roll"] = msg.roll * 57.2957795
+                    ap_att["pitch"] = msg.pitch * 57.2957795
+        except Exception as e:
+            pass
+    threading.Thread(target=ap_listener_fn, daemon=True).start()
+
     # 5. Telemetry loop
     print(f"\nFlight active. Monitoring for transition checklist...")
-    print(f"{'═'*95}")
-    print(f" {'t[s]':<6} | {'Alt[ft]':<8} | {'Pitch[°]':<8} | {'Roll[°]':<8} | {'Airspd[fps]':<12} | {'FlapL':<6} {'FlapR':<6} | {'Status':<15}")
-    print(f"{'═'*95}")
+    print(f"{'═'*115}")
+    print(f" {'t[s]':<6} | {'Alt[ft]':<8} | {'Pitch [Act(AP)]':<16} | {'Roll [Act(AP)]':<16} | {'Airspd[fps]':<12} | {'FlapL':<6} {'FlapR':<6} | {'Status':<15}")
+    print(f"{'═'*115}")
 
     start_t = time.time()
     end_t = start_t + args.duration
@@ -246,6 +263,7 @@ def main():
     transition_completed = False
     transition_trigger_time = 0.0
     transition_complete_time = 0.0
+    handover_sim_t = 0.0
     
     max_pitch = 0.0
     max_roll = 0.0
@@ -280,22 +298,25 @@ def main():
             # Read motor active flag
             motor_active = int(r.get('motor_active', 1))
 
-            status_str = "QHOVER"
+            status_str = "QSTABILIZE"
             
             # Post-handover trigger stable hover hold
             if not takeoff_triggered and r.get('armed') == '1':
                 takeoff_triggered = True
+                handover_sim_t = t
                 def handover_sequence():
-                    print("\n  [handover] Handed over control to ArduPilot in QHOVER.")
+                    print("\n  [handover] Handed over control to ArduPilot in QSTABILIZE (attitude hold).")
                     for _ in range(5):
-                        mav_set_mode(18)   # QHOVER
+                        mav_set_mode(17)   # QSTABILIZE: pure attitude hold, no position drift
                     with _rc_override_lock:
-                        _rc_override_channels[2] = 1500   # QHOVER throttle center
+                        _rc_override_channels[2] = 1500   # QSTABILIZE throttle center
                         _rc_override_channels[1] = 1500   # Pitch stick neutral
                 threading.Thread(target=handover_sequence, daemon=True).start()
 
-            # Trigger transition to forward flight (FBWA) after 10s of stable hover
-            if takeoff_triggered and t >= 10.0 and not transition_triggered:
+            # Trigger transition to forward flight (FBWA) after 3s of stable QSTABILIZE hover.
+            # At arm time u=2fps; at arm+3s u≈5-6fps -- still below the aero instability threshold (~8fps).
+            # Transitioning early gives FBWA elevator authority before the nose-up divergence develops.
+            if takeoff_triggered and t >= handover_sim_t + 3.0 and not transition_triggered:
                 transition_triggered = True
                 transition_trigger_time = t
                 def transition_sequence():
@@ -334,7 +355,7 @@ def main():
             if abs(pitch) > 45 or abs(roll) > 45:
                 warn = " 🚨 CRITICAL"
 
-            print(f" {t:5.1f}s | {alt:8.1f} | {pitch:8.2f} | {roll:8.2f} | {speed:12.2f} | {flap_l:.3f}  {flap_r:.3f} | {status_str:<15}{warn}")
+            print(f" {t:5.1f}s | {alt:8.1f} | {pitch:6.2f} ({ap_att['pitch']:+5.1f}) | {roll:6.2f} ({ap_att['roll']:+5.1f}) | {speed:12.2f} | {flap_l:.3f}  {flap_r:.3f} | {status_str:<15}{warn}")
         except Exception:
             pass
 

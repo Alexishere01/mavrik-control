@@ -5,9 +5,9 @@
     "flaps_value": 0.99,
     "trim": {
         "description": "Asymmetric trim for Team1_VTOL.json loaded payload (forward CG).",
-        "throttle": 0.60,
-        "throttle_fwd": 0.130,
-        "throttle_aft": 0.120,
+        "throttle": 0.376,
+        "throttle_fwd": 0.410,
+        "throttle_aft": 0.342,
         "aileron_deg": 0.0,
         "elevator_deg": 0.0,
         "rudder_deg": 0.0
@@ -76,7 +76,7 @@
         "kd": 0.0,
         "output_min": -5.0,
         "output_max": 5.0,
-        "integrator_max": 5.0
+        "integrator_max": 1000.0
     },
     "yaw_attitude": {
         "enabled": true,

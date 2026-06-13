@@ -1,0 +1,47 @@
+RiTW: Starting ArduPlane : /Users/alex/Library/Containers/com.isaacmarovitz.Whisky/Bottles/37084628-4FFA-403A-BD20-3D881F401401/drive_c/zWindowsDeployment/ardupilot/build/sitl/bin/arduplane -w --model JSON:127.0.0.1 --speedup 1 --slave 0 --defaults ardupilot/Tools/autotest/default_params/quadplane.parm,/Users/alex/Library/Containers/com.isaacmarovitz.Whisky/Bottles/37084628-4FFA-403A-BD20-3D881F401401/drive_c/zWindowsDeployment/mavrik.parm --sim-address=127.0.0.1 -I0
+RiTW: Window access not found, logging to /tmp/ArduPlane.log
+Connect tcp:127.0.0.1:5760 source_system=255
+Log Directory: 
+Telemetry log: mav.tlog
+Waiting for heartbeat from tcp:127.0.0.1:5760
+Detected vehicle 1:1 on link 0
+online system 1
+INITIALISING> Mode INITIALISING
+AP: RCInput: decoding UDP (Pulses)
+AP: QuadPlane initialised, Frame: QUAD/X
+AP: Ground start
+AP: Skipping INS calibration
+AP: Calibrating barometer
+AP: ArduPlane V4.8.0-dev (33673014)
+AP: MacBook-Air-2.local
+Received 1557 parameters (ftp)
+Saved 1557 parameters to mav.parm
+QSTABILIZE> AP: Barometer 1 calibration complete
+AP: Barometer 2 calibration complete
+AP: Airspeed 1 calibration started
+AP: ArduPilot Ready
+AP: AHRS: DCM active
+AP: Throttle failsafe off
+Mode QSTABILIZE
+AP: Airspeed 1 calibrated
+AP: EKF3 IMU0 initialised
+AP: EKF3 IMU0 tilt alignment complete
+AP: EKF3 IMU0 MAG0 initial yaw alignment complete
+AP: GPS 1: probing for u-blox at 230400 baud
+AP: GPS 1: detected u-blox
+AP: EKF3 IMU0 origin set
+AP: Field Elevation Set: 1499m
+AP: PreArm: AHRS: not using configured AHRS type
+AP: PreArm: Motors: Q_M_SPIN_ARM > Q_M_SPIN_MIN
+Got COMMAND_ACK: COMPONENT_ARM_DISARM: ACCEPTED
+Got COMMAND_ACK: COMPONENT_ARM_DISARM: ACCEPTED
+Got COMMAND_ACK: COMPONENT_ARM_DISARM: ACCEPTED
+Got COMMAND_ACK: COMPONENT_ARM_DISARM: ACCEPTED
+Got COMMAND_ACK: COMPONENT_ARM_DISARM: ACCEPTED
+AP: Throttle armed
+ARMED
+Arming checks disabled
+AP: EKF3 IMU0 is using GPS
+AP: AHRS: EKF3 active
+/Users/alex/.pyenv/versions/3.10.18/Library/Frameworks/Python.framework/Versions/3.10/lib/python3.10/multiprocessing/resource_tracker.py:224: UserWarning: resource_tracker: There appear to be 9 leaked semaphore objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '

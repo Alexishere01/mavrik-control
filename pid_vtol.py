@@ -668,10 +668,10 @@ class VTOLController:
             base_fwd = self.trim_throttle_fwd + collective_delta
             base_aft = self.trim_throttle_aft + collective_delta
 
-            thrFR_raw = base_fwd + pitch_fwd + roll_diff + yaw_thr_diff   # Motor 1 CCW: + for yaw right (Front-Left physical)
-            thrFL_raw = base_fwd + pitch_fwd - roll_diff - yaw_thr_diff   # Motor 2 CW:  - for yaw right (Front-Right physical)
-            thrAR_raw = base_aft + pitch_aft - roll_diff - yaw_thr_diff   # Motor 3 CW:  - for yaw right (Rear-Right physical)
-            thrAL_raw = base_aft + pitch_aft + roll_diff + yaw_thr_diff   # Motor 4 CCW: + for yaw right (Rear-Left physical)
+            thrFR_raw = base_fwd + pitch_fwd - roll_diff - yaw_thr_diff   # Motor 1: Front-Right physical (CW)
+            thrFL_raw = base_fwd + pitch_fwd + roll_diff + yaw_thr_diff   # Motor 2: Front-Left physical (CCW)
+            thrAR_raw = base_aft + pitch_aft - roll_diff + yaw_thr_diff   # Motor 3: Rear-Right physical (CCW)
+            thrAL_raw = base_aft + pitch_aft + roll_diff - yaw_thr_diff   # Motor 4: Rear-Left physical (CW)
 
             # === RAMP-IN: blend toward pure trim during the first few seconds ===
             thrFR_ramped = ramp * thrFR_raw + (1 - ramp) * self.trim_throttle_fwd
